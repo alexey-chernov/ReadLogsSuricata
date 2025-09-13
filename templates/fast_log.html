@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Перегляд Fast.log</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 70vh; /* Обмежуємо висоту для прокрутки */
+            overflow-y: auto; /* Додаємо скрол */
+        }
+        .error-message {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Перегляд Fast.log</h1>
+        <p style="text-align: center;"><a href="/">&#8592; Повернутися на головну</a></p>
+
+        {% if error_message %}
+            <p class="error-message">{{ error_message }}</p>
+        {% else %}
+            <pre>{{ log_content }}</pre>
+        {% endif %}
+    </div>
+</body>
+</html>

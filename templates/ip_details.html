@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Інформація про IP-адресу: {{ ip_address }}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .activity-table {
+            font-size: 12px;
+        }
+        #map {
+            height: 400px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Деталі про IP-адресу: {{ ip_address }}</h1>
+        <p><a href="/">&#8592; Повернутися на головну</a></p>
+
+        <h2>Географічне розташування</h2>
+        {% if 'error' in geo_info %}
+            <p style="color:red;">{{ geo_info.error }}</p>
+        {% else %}
+            <table>
+                <tr>
+                    <th>Місто:</th>
+                    <td>{{ geo_info.city }}</td>
+                </tr>
+                <tr>
+                    <th>Країна:</th>
+                    <td>{{ geo_info.country }}</td>
+                </tr>
+                <tr>
+                    <th>Широта:</th>
+                    <td>{{ geo_info.latitude }}</td>
+                </tr>
+                <tr>
+                    <th>Довгота:</th>
+                    <td>{{ geo_info.longitude }}</td>
+                </tr>
+            </table>
+            <div id="map"></div>
+        {% endif %}
+
+        <h2>Whois-інформація</h2>
+        {% if 'error' in whois_info %}
+            <p style="color:red;">{{ whois_info.error }}</p>
+        {% else %}
+            <pre>{{ whois_info | tojson(indent=2) }}</pre>
+        {% endif %}
+
+        <h2>Активність з файлу eve.json</h2>
+        {% if ip_activity %}
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Дата й Час</th>
+                        <th>Джерело IP:Порт</th>
+                        <th>Призначення IP:Порт</th>
+                        <th>Тип події</th>
+                        <th>Сигнатура</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in ip_activity %}
+                    <tr>
+                        <td>{{ event.timestamp.strftime('%d-%m-%Y %H:%M:%S')}}</td>
+                        <td>{{ event.src_ip }}:{{ event.src_port }}</td>
+                        <td>{{ event.dest_ip }}:{{ event.dest_port }}</td>
+                        <td>{{ event.event_type }}</td>
+                        <td>{% if event.alert %}{{ event.alert.signature }}{% else %}N/A{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>Активності для цієї IP-адреси не знайдено.</p>
+        {% endif %}
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {% if geo_info.latitude and geo_info.longitude %}
+    <script>
+        var map = L.map('map').setView([{{ geo_info.latitude }}, {{ geo_info.longitude }}], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        L.marker([{{ geo_info.latitude }}, {{ geo_info.longitude }}]).addTo(map)
+            .bindPopup(`<b>{{ ip_address | tojson }}</b><br>{{ geo_info.city | tojson }}, {{ geo_info.country | tojson }}`).openPopup();
+    </script>
+    {% endif %}
+    
+</body>
+</html>

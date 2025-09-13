@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фільтрація за датою - Suricata</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }        
+        h1, h2 {
+            text-align: center;
+        }
+        nav {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+        nav a {
+            margin: 0 15px;
+            color: blue;
+            text-decoration: none;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        .date-form {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .chart {
+            background-color: #fff;
+            margin: 10px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .chart img {
+            max-width: 100%;
+            height: auto;
+        }
+        .data-table-container {
+            margin: 40px auto;
+            max-width: 800px;
+            text-align: left;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .error-message {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="{{ url_for('index') }}">Головна (Всі дані)</a>
+            <a href="{{ url_for('date_filter') }}">Фільтр за датою</a>
+        </nav>
+        
+        <h1>Аналіз логів Suricata за заданою датою</h1>
+
+        <div class="date-form">
+            <form action="{{ url_for('date_filter') }}" method="get">
+                <label for="date">Виберіть дату:</label>
+                <input type="date" id="date" name="date" value="{{ selected_date or '' }}">
+                <button type="submit">Сформувати</button>
+            </form>
+        </div>
+
+        {% if error_message %}
+            <p class="error-message">{{ error_message }}</p>
+        {% elif selected_date %}
+            <h2 style="text-align: center;">Дані за {{ selected_date }}</h2>
+            <div class="chart-container">
+                <div class="chart">
+                    <h2>Розподіл подій</h2>
+                    <img src="{{ pie_chart }}" alt="Діаграма розподілу подій">
+                </div>
+                <div class="chart">
+                    <h2>Сигнатури тривог</h2>
+                    <img src="{{ bar_chart }}" alt="Діаграма сигнатур">
+                </div>
+                <div class="chart">
+                    <h2>Кількість подій у часі</h2>
+                    <img src="{{ line_chart }}" alt="Графік кількості подій">
+                </div>
+                <div class="chart">
+                    <h2>IP-адреси з тривогами</h2>
+                    <img src="{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес">
+                </div>
+            </div> 
+
+            <div class="data-table-container">
+                <h2>Географічне розташування IP-адрес з тривогами</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>IP-адреса</th>
+                            <th>Кількість тривог</th>
+                            <th>Місто</th>
+                            <th>Країна</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in geo_data %}
+                        <tr>
+                            <td><a href="{{ url_for('ip_details', ip_address=item.ip) }}">{{ item.ip }}</a></td>
+                            <td>{{ item.count }}</td>
+                            <td>{{ item.city }}</td>
+                            <td>{{ item.country }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>                
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,2 @@
+scp root@10.66.66.1:/var/log/suricata/eve.json /var/log/suricata/eve.json
+scp root@10.66.66.1:/var/log/suricata/fast.log /var/log/suricata/fast.log

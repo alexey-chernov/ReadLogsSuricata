@@ -1,0 +1,2 @@
+docker build -t read_logs_suricata .
+docker run -d -p 5030:5030 --name ReadLogsSuricata --restart=always -v /var/log/suricata/eve.json:/var/log/suricata/eve.json -v /var/log/suricata/fast.log:/var/log/suricata/fast.log read_logs_suricata

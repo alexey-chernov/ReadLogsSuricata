@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналіз логів Suricata</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .chart {
+            background-color: #fff;
+            padding: 20px;
+            margin: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .chart img {
+            max-width: 100%;
+            height: auto;
+        }
+        .data-table-container {
+            margin: 40px auto;
+            max-width: 800px;
+            text-align: left;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        ul {
+            text-align: left;
+        }
+        #map {
+            height: 500px;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="{{ url_for('index') }}">Головна (Всі дані)</a>
+            <a href="{{ url_for('date_filter') }}">Фільтр за датою</a>
+            <a href="{{ url_for('fast_log_page') }}" style="font-size: 1.2em; color: blue;">Переглянути Fast.log &#8594;</a>        
+        </nav>
+        
+        <h1>Аналіз логів Suricata</h1>
+    
+        <div class="chart-container">
+            <div class="chart pie-chart-with-legend">
+                <h2>Розподіл типів подій</h2>
+                <div class="content">
+                    <img src="{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                    <div class="event-description-list">
+                        <h3>Пояснення типів подій:</h3>
+                        <ul class="ul">
+                            {% for event_type, description in event_descriptions.items() %}
+                                <li><strong>{{ event_type }}</strong>: {{ description }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="chart">
+                <h2>Сигнатури тривог</h2>
+                <img src="{{ bar_chart }}" alt="Стовпчаста діаграма сигнатур">
+            </div>
+            <div class="chart">
+                <h2>Кількість подій у часі</h2>
+                <img src="{{ line_chart }}" alt="Лінійний графік подій у часі">
+            </div>
+            <div class="chart">
+                <h2>IP-адреси з тривогами</h2>
+                <img src="{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес з тривогами">
+            </div>
+        </div>
+
+        <div class="data-table-container">
+            <h2>Географічне розташування IP-адрес з тривогами</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>IP-адреса</th>
+                        <th>Кількість тривог</th>
+                        <th>Місто</th>
+                        <th>Країна</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in geo_data %}
+                    <tr>
+                        <td><a href="{{ url_for('ip_details', ip_address=item.ip) }}">{{ item.ip }}</a></td>
+                        <td>{{ item.count }}</td>
+                        <td>{{ item.city }}</td>
+                        <td>{{ item.country }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>        
+    </div>
+</div>
+    
+</body>
+</html>
