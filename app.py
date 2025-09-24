@@ -27,7 +27,8 @@ event_descriptions = {
     'tls': 'Інформація про TLS/SSL сесії.',
     'ssh': 'Інформація про сесії протоколу SSH.',
     'mdns': 'Інформація про запити та відповіді протоколу mDNS (Multicast DNS).',
-    'drop': 'Інформація про пакети, які були відкинуті Suricata в режимі IPS.'
+    'drop': 'Інформація про пакети, які були відкинуті Suricata в режимі IPS.',
+    'quic': 'Інформація про QUIC-трафік, що використовує UDP.'
 }
 
 # --- ФУНКЦІЇ ДЛЯ РОБОТИ З БАЗОЮ ДАНИХ ---
@@ -117,13 +118,8 @@ def create_top_alert_ips_bar_chart_and_save(df, top_n, output_path):
     plt.close()
 
 def get_whois_info(ip_address):
-    """
-    Отримує інформацію WHOIS для заданої IP-адреси.
-    """
     try:
-        # Використовуємо whois.whois() для запиту до бази даних WHOIS
         whois_info = whois.whois(ip_address)
-        # Перетворюємо об'єкт WhoisEntry в словник
         if whois_info and not isinstance(whois_info, dict):
             return whois_info.__dict__
         return whois_info
@@ -132,13 +128,8 @@ def get_whois_info(ip_address):
         return {'error': 'WHOIS інформацію не знайдено.'}
 
 def get_geo_info(ip_address):
-    """
-    Отримує географічну інформацію для заданої IP-адреси.
-    """
     geo_db_path = os.path.join(app.root_path, 'GeoLite2-City.mmdb')
     geo_info = {}
-    
-    # Перевіряємо, чи існує файл бази даних GeoLite2
     if os.path.exists(geo_db_path):
         try:
             reader = geoip2.database.Reader(geo_db_path)
@@ -154,12 +145,12 @@ def get_geo_info(ip_address):
         except Exception as e:
             geo_info = {'error': f'Помилка GeoIP: {e}'}
         finally:
-            reader.close()
+            if reader:
+                reader.close()
     else:
         geo_info = {'error': 'База даних GeoLite2 не знайдена. Перевірте файл GeoLite2-City.mmdb.'}
-        
     return geo_info
-    
+
 def get_geo_info_for_ips(ips):
     geo_info = []
     db_path = os.path.join(app.root_path, 'GeoLite2-City.mmdb')
@@ -204,46 +195,34 @@ def get_geo_info_for_ips(ips):
 # --- МАРШРУТИ FLASK ---
 @app.route('/')
 def index():
-    # Отримуємо всі дані з бази даних
     query = "SELECT * FROM events"
     data_frame = get_data_from_db(query)
     
     if data_frame.empty:
         return "Не вдалося завантажити дані з бази даних.", 500
     
-    # Решта коду для генерації графіків (без змін)
     pie_chart_path = os.path.join(app.root_path, 'static', 'pie_chart.png')
     bar_chart_path = os.path.join(app.root_path, 'static', 'bar_chart.png')
     line_chart_path = os.path.join(app.root_path, 'static', 'line_chart.png')
-    top_alert_ips_chart_path = os.path.join(app.root_path, 'static', 'top_alert_ips_chart.png')
+    
     create_pie_chart_and_save(data_frame, pie_chart_path)
     create_top_alerts_bar_chart_and_save(data_frame, 10, bar_chart_path)
     create_line_chart_and_save(data_frame, line_chart_path)
-    create_top_alert_ips_bar_chart_and_save(data_frame, 10, top_alert_ips_chart_path)
-    geo_data = []
-    alerts_df = data_frame[data_frame['event_type'] == 'alert']
-    if not alerts_df.empty:
-        top_ips = alerts_df['src_ip'].value_counts().head(10)
-        if not top_ips.empty:
-            geo_data = get_geo_info_for_ips(top_ips)
+    
     return render_template('index.html',
                            pie_chart='/static/pie_chart.png',
                            bar_chart='/static/bar_chart.png',
                            line_chart='/static/line_chart.png',
-                           top_alert_ips_chart='/static/top_alert_ips_chart.png',
-                           geo_data=geo_data,
                            event_descriptions=event_descriptions)
 
 @app.route('/date_filter')
 def date_filter():
     selected_date = request.args.get('date')
-    print(selected_date)
+    
     if not selected_date:
         return render_template('date_filter.html', selected_date=None, error_message=None)
     
-    # Виправлений запит до бази даних з фільтром по даті
-    # strftime('%Y-%m-%d', timestamp) витягує дату у форматі YYYY-MM-DD
-    query = "SELECT * FROM events WHERE substr(timestamp, 0, 11) =  ?"
+    query = "SELECT * FROM events WHERE substr(timestamp, 0, 11) = ?"
     data_frame = get_data_from_db(query, (selected_date,))
     
     if data_frame.empty:
@@ -259,36 +238,26 @@ def date_filter():
     create_top_alerts_bar_chart_and_save(data_frame, 10, bar_chart_path)
     create_line_chart_and_save(data_frame, line_chart_path)
     create_top_alert_ips_bar_chart_and_save(data_frame, 10, top_alert_ips_chart_path)
-
-    geo_data = []
-    alerts_df = data_frame[data_frame['event_type'] == 'alert']
-    if not alerts_df.empty:
-        top_ips = alerts_df['src_ip'].value_counts().head(10)
-        if not top_ips.empty:
-            geo_data = get_geo_info_for_ips(top_ips)
-
+    
     return render_template('date_filter.html',
                            selected_date=selected_date,
                            pie_chart=f'/static/pie_chart_{date_prefix}.png',
                            bar_chart=f'/static/bar_chart_{date_prefix}.png',
                            line_chart=f'/static/line_chart_{date_prefix}.png',
                            top_alert_ips_chart=f'/static/top_alert_ips_chart_{date_prefix}.png',
-                           geo_data=geo_data,
-                           event_descriptions=event_descriptions,
                            error_message=None)
                            
 @app.route('/ip/<ip_address>')
-def ip_details(ip_address):    
-    # Отримуємо активність для конкретної IP-адреси
+def ip_details(ip_address):
     query = "SELECT * FROM events WHERE src_ip = ? OR dest_ip = ?"
     data_frame = get_data_from_db(query, (ip_address, ip_address))
     
-    if data_frame.empty:
-        ip_activity_list = []
-    else:
+    if not data_frame.empty:
         data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'])
         ip_activity_list = data_frame.to_dict('records')
-    
+    else:
+        ip_activity_list = []
+
     whois_info = get_whois_info(ip_address)
     geo_info = get_geo_info(ip_address)
 
@@ -305,7 +274,6 @@ def ip_details(ip_address):
     
 @app.route('/fast-log')
 def fast_log_page():
-    # ... (цей код залишається без змін) ...
     fast_log_file_path = '/var/log/suricata/fast.log'
 
     log_content = ""
@@ -323,6 +291,52 @@ def fast_log_page():
     return render_template('fast_log.html',
                            log_content=log_content,
                            error_message=error_message)
+
+# ЕТАП 1.1: Сторінка з усіма типами подій
+@app.route('/event_types')
+def event_types():
+    return render_template('event_types.html', event_descriptions=event_descriptions)
+
+# ЕТАП 1.2: Сторінка з IP-адресами для вибраного типу події
+@app.route('/event_type/<event_type>')
+def ips_by_event_type(event_type):
+    query = "SELECT DISTINCT src_ip, dest_ip FROM events WHERE event_type = ?"
+    data_frame = get_data_from_db(query, (event_type,))
+    
+    ips = set()
+    for _, row in data_frame.iterrows():
+        if row['src_ip']:
+            ips.add(row['src_ip'])
+        if row['dest_ip']:
+            ips.add(row['dest_ip'])
+            
+    return render_template('ips_by_event_type.html', ips=sorted(list(ips)), event_type=event_type)
+    
+# ЕТАП 2.1: Сторінка з усіма сигнатурами
+@app.route('/all_signatures')
+def all_signatures():
+    query = "SELECT DISTINCT signature FROM events WHERE signature IS NOT NULL"
+    data_frame = get_data_from_db(query)
+    signatures = data_frame['signature'].tolist()
+    return render_template('all_signatures.html', signatures=signatures)
+    
+# ЕТАП 2.2: Сторінка з IP-адресами для вибраної сигнатури
+@app.route('/signature/<signature>')
+def ips_by_signature(signature):
+    query = "SELECT DISTINCT src_ip FROM events WHERE signature = ?"
+    data_frame = get_data_from_db(query, (signature,))
+    ips = data_frame['src_ip'].tolist()
+    return render_template('ips_by_signature.html', ips=sorted(list(set(ips))), signature=signature)
+
+# ЕТАП 3: Сторінка з усіма IP-адресами з тривогами
+@app.route('/all_alert_ips')
+def all_alert_ips():
+    query = "SELECT src_ip, COUNT(src_ip) as count FROM events WHERE event_type = 'alert' GROUP BY src_ip ORDER BY count DESC"
+    data_frame = get_data_from_db(query)
+    
+    geo_data = get_geo_info_for_ips(data_frame.set_index('src_ip')['count'])
+    
+    return render_template('all_alert_ips.html', geo_data=geo_data)
 
 if __name__ == '__main__':
     app.run(debug=True)

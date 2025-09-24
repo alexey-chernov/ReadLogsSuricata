@@ -40,10 +40,12 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            position: relative;
         }
         table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 10px;
         }
         th, td {
             border: 1px solid #ddd;
@@ -51,81 +53,62 @@
         }
         th {
             background-color: #f2f2f2;
-        }
-        ul {
             text-align: left;
         }
-        #map {
-            height: 500px;
+        .center-text {
+            text-align: center;
+        }
+        .description-box {
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 15px;
             margin-top: 20px;
-            border-radius: 8px;
+            border-radius: 5px;
+            text-align: left;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-top: 10px;
+            background-color: #007BFF;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <nav>
-            <a href="{{ url_for('index') }}">Головна (Всі дані)</a>
-            <a href="{{ url_for('date_filter') }}">Фільтр за датою</a>
-            <a href="{{ url_for('fast_log_page') }}" style="font-size: 1.2em; color: blue;">Переглянути Fast.log &#8594;</a>        
-        </nav>
-        
         <h1>Аналіз логів Suricata</h1>
-    
+        <nav>
+            <a href="/">Головна</a>
+            <a href="/date_filter">Фільтр по даті</a>
+            <a href="/fast-log">Переглянути Fast.log</a>
+        </nav>
         <div class="chart-container">
-            <div class="chart pie-chart-with-legend">
-                <h2>Розподіл типів подій</h2>
-                <div class="content">
-                    <img src="{{ pie_chart }}" alt="Кругова діаграма типів подій">
-                    <div class="event-description-list">
-                        <h3>Пояснення типів подій:</h3>
-                        <ul class="ul">
-                            {% for event_type, description in event_descriptions.items() %}
-                                <li><strong>{{ event_type }}</strong>: {{ description }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
             <div class="chart">
-                <h2>Сигнатури тривог</h2>
-                <img src="{{ bar_chart }}" alt="Стовпчаста діаграма сигнатур">
+                <h2>Типи подій</h2>
+                <img src="{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                <a href="{{ url_for('event_types') }}" class="button">Докладніше ...</a>
             </div>
             <div class="chart">
                 <h2>Кількість подій у часі</h2>
                 <img src="{{ line_chart }}" alt="Лінійний графік подій у часі">
             </div>
             <div class="chart">
-                <h2>IP-адреси з тривогами</h2>
-                <img src="{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес з тривогами">
-            </div>
+                <h2>Сигнатури тривог</h2>
+                <img src="{{ bar_chart }}" alt="Стовпчаста діаграма сигнатур">
+                <a href="{{ url_for('all_signatures') }}" class="button">Докладніше ...</a>
+            </div>            
         </div>
-
-        <div class="data-table-container">
+        <div class="chart">
             <h2>Географічне розташування IP-адрес з тривогами</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>IP-адреса</th>
-                        <th>Кількість тривог</th>
-                        <th>Місто</th>
-                        <th>Країна</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in geo_data %}
-                    <tr>
-                        <td><a href="{{ url_for('ip_details', ip_address=item.ip) }}">{{ item.ip }}</a></td>
-                        <td>{{ item.count }}</td>
-                        <td>{{ item.city }}</td>
-                        <td>{{ item.country }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>        
+            <a href="{{ url_for('all_alert_ips') }}" class="button">Докладніше ...</a>
+        </div>
     </div>
-</div>
-    
 </body>
 </html>
