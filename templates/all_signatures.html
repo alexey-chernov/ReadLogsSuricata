@@ -58,13 +58,14 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Усі сигнатури тривог</h1>
+    <div class="container">        
         <nav>
             <a href="/">Головна</a>
             <a href="/date_filter">Фільтр по даті</a>
-            <a href="/fast-log">Переглянути Fast.log</a>
         </nav>
+
+        <h1>Усі сигнатури тривог</h1>
+
         {% if signatures %}
         <ul>
             {% for signature in signatures %}

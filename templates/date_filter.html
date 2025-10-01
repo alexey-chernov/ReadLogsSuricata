@@ -80,7 +80,7 @@
 <body>
     <div class="container">
         <nav>
-            <a href="{{ url_for('index') }}">Головна (Всі дані)</a>
+            <a href="{{ url_for('index') }}">Головна</a>
             <a href="{{ url_for('date_filter') }}">Фільтр за датою</a>
         </nav>
         
@@ -100,7 +100,7 @@
             <h2 style="text-align: center;">Дані за {{ selected_date }}</h2>
             <div class="chart-container">
                 <div class="chart">
-                    <h2>Розподіл подій</h2>
+                    <h2>Розподіл типів подій Suricata</h2>
                     <img src="{{ pie_chart }}" alt="Діаграма розподілу подій">
                 </div>                
                 <div class="chart">

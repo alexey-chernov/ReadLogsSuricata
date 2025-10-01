@@ -69,7 +69,6 @@ def create_pie_chart_and_save(df, output_path):
         large_sectors['Інше'] = other_count
     plt.figure(figsize=(8, 8))
     plt.pie(large_sectors, labels=large_sectors.index, autopct='%1.1f%%', startangle=90)
-    plt.title('Розподіл типів подій Suricata')
     plt.ylabel('')
     plt.savefig(output_path)
     plt.close()
@@ -78,10 +77,12 @@ def create_top_alerts_bar_chart_and_save(df, top_n, output_path):
     if df.empty or 'event_type' not in df.columns: return
     alerts_df = df[df['event_type'] == 'alert']
     if alerts_df.empty: return
-    signatures = alerts_df['signature'].value_counts().head(top_n)
+    if top_n == 0:
+        signatures = alerts_df['signature'].value_counts()        
+    else:
+        signatures = alerts_df['signature'].value_counts().head(top_n)        
     plt.figure(figsize=(12, 7))
-    signatures.plot(kind='bar')
-    plt.title(f'Топ-{top_n} сигнатур тривог')
+    signatures.plot(kind='bar')    
     plt.xlabel('Сигнатура')
     plt.ylabel('Кількість')
     plt.xticks(rotation=45, ha='right')
@@ -95,7 +96,6 @@ def create_line_chart_and_save(df, output_path):
     events_over_time = df.set_index('timestamp').resample('H').size()
     plt.figure(figsize=(12, 7))
     events_over_time.plot(kind='line')
-    plt.title('Кількість подій у часі')
     plt.xlabel('Час')
     plt.ylabel('Кількість подій')
     plt.tight_layout()
@@ -106,10 +106,12 @@ def create_top_alert_ips_bar_chart_and_save(df, top_n, output_path):
     if df.empty: return
     alerts_df = df[df['event_type'] == 'alert']
     if alerts_df.empty: return
-    top_ips = alerts_df['src_ip'].value_counts().head(top_n)
+    if top_n == 0:
+        top_ips = alerts_df['src_ip'].value_counts()        
+    else:
+        top_ips = alerts_df['src_ip'].value_counts().head(top_n)
     plt.figure(figsize=(12, 7))
-    top_ips.plot(kind='bar')
-    plt.title(f'Топ-{top_n} IP-адрес за кількістю тривог')
+    top_ips.plot(kind='bar')    
     plt.xlabel('IP-адреса')
     plt.ylabel('Кількість тривог')
     plt.xticks(rotation=45, ha='right')
@@ -235,16 +237,24 @@ def date_filter():
     top_alert_ips_chart_path = os.path.join(app.root_path, 'static', f'top_alert_ips_chart_{date_prefix}.png')
     
     create_pie_chart_and_save(data_frame, pie_chart_path)
-    create_top_alerts_bar_chart_and_save(data_frame, 10, bar_chart_path)
+    create_top_alerts_bar_chart_and_save(data_frame, 0, bar_chart_path)
     create_line_chart_and_save(data_frame, line_chart_path)
-    create_top_alert_ips_bar_chart_and_save(data_frame, 10, top_alert_ips_chart_path)
-    
+    create_top_alert_ips_bar_chart_and_save(data_frame, 0, top_alert_ips_chart_path)
+
+    geo_data = []
+    alerts_df = data_frame[data_frame['event_type'] == 'alert']
+    if not alerts_df.empty:
+        top_ips = alerts_df['src_ip'].value_counts()
+        if not top_ips.empty:
+            geo_data = get_geo_info_for_ips(top_ips)
+        
     return render_template('date_filter.html',
                            selected_date=selected_date,
                            pie_chart=f'/static/pie_chart_{date_prefix}.png',
                            bar_chart=f'/static/bar_chart_{date_prefix}.png',
                            line_chart=f'/static/line_chart_{date_prefix}.png',
                            top_alert_ips_chart=f'/static/top_alert_ips_chart_{date_prefix}.png',
+                           geo_data=geo_data,
                            error_message=None)
                            
 @app.route('/ip/<ip_address>')

@@ -82,16 +82,18 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Аналіз логів Suricata</h1>
+    <div class="container">        
         <nav>
             <a href="/">Головна</a>
             <a href="/date_filter">Фільтр по даті</a>
             <a href="/fast-log">Переглянути Fast.log</a>
         </nav>
+
+        <h1>Аналіз логів Suricata</h1>
+
         <div class="chart-container">
             <div class="chart">
-                <h2>Типи подій</h2>
+                <h2>Розподіл типів подій Suricata</h2>
                 <img src="{{ pie_chart }}" alt="Кругова діаграма типів подій">
                 <a href="{{ url_for('event_types') }}" class="button">Докладніше ...</a>
             </div>
