@@ -28,7 +28,14 @@ event_descriptions = {
     'ssh': 'Інформація про сесії протоколу SSH.',
     'mdns': 'Інформація про запити та відповіді протоколу mDNS (Multicast DNS).',
     'drop': 'Інформація про пакети, які були відкинуті Suricata в режимі IPS.',
-    'quic': 'Інформація про QUIC-трафік, що використовує UDP.'
+    'quic': 'Інформація про QUIC-трафік, що використовує UDP.',
+    'ftp': 'Інформація про сесії протоколу FTP (File Transfer Protocol).',
+    'smtp': 'Інформація про сесії протоколу SMTP (Simple Mail Transfer Protocol).',
+    'smb': 'Інформація про сесії протоколу SMB (Server Message Block).',
+    'tftp': 'Інформація про сесії протоколу TFTP (Trivial File Transfer Protocol).',
+    'rdp': 'Інформація про сесії протоколу RDP (Remote Desktop Protocol).',
+    'ipp': 'Інформація про сесії протоколу IPP (Internet Printing Protocol).',
+    'capture': 'Інформація, пов’язана з помилками захоплення пакетів (наприклад, dropped packets).'
 }
 
 # --- ФУНКЦІЇ ДЛЯ РОБОТИ З БАЗОЮ ДАНИХ ---
