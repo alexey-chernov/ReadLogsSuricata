@@ -10,10 +10,23 @@
             font-family: Arial, sans-serif;
             margin: 20px;
             background-color: #f4f4f4;
+            color: #333;
+        }
+        h1, h2 {
             text-align: center;
         }
-        h1 {
-            color: #333;
+        nav {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+        nav a {
+            margin: 0 15px;
+            color: blue;
+            text-decoration: none;
+        }
+        nav a:hover {
+            text-decoration: underline;
         }
         .chart-container {
             display: flex;
@@ -23,10 +36,13 @@
         }
         .chart {
             background-color: #fff;
-            padding: 20px;
             margin: 10px;
+            padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            flex: 1 1 45%; /* Для двох колонок на великих екранах */
+            min-width: 300px;
         }
         .chart img {
             max-width: 100%;
@@ -34,13 +50,12 @@
         }
         .data-table-container {
             margin: 40px auto;
-            max-width: 800px;
+            max-width: 900px;
             text-align: left;
             background-color: #fff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            position: relative;
         }
         table {
             width: 100%;
@@ -49,26 +64,15 @@
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
+            text-align: left;
         }
         th {
             background-color: #f2f2f2;
-            text-align: left;
-        }
-        .center-text {
-            text-align: center;
-        }
-        .description-box {
-            background-color: #f9f9f9;
-            border: 1px solid #ccc;
-            padding: 15px;
-            margin-top: 20px;
-            border-radius: 5px;
-            text-align: left;
         }
         .button {
             display: inline-block;
-            padding: 10px 20px;
+            padding: 10px 15px;
             margin-top: 10px;
             background-color: #007BFF;
             color: white;
@@ -89,28 +93,55 @@
             <a href="/fast-log">Переглянути Fast.log</a>
         </nav>
 
-        <h1>Аналіз логів Suricata</h1>
+        <h1>Аналіз логів Suricata (Увесь період)</h1>
 
         <div class="chart-container">
             <div class="chart">
                 <h2>Розподіл типів подій Suricata</h2>
-                <img src="{{ pie_chart }}" alt="Кругова діаграма типів подій">
-                <a href="{{ url_for('event_types') }}" class="button">Докладніше ...</a>
+                <!-- Зверніть увагу: pie_chart тепер містить base64 дані, як і в date_filter.html -->
+                <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                <a href="{{ url_for('event_types') }}" class="button">Типи подій</a>
             </div>
             <div class="chart">
                 <h2>Кількість подій у часі</h2>
-                <img src="{{ line_chart }}" alt="Лінійний графік подій у часі">
+                <img src="data:image/png;base64,{{ line_chart }}" alt="Лінійний графік подій у часі">
             </div>
             <div class="chart">
                 <h2>Сигнатури тривог</h2>
-                <img src="{{ bar_chart }}" alt="Стовпчаста діаграма сигнатур">
-                <a href="{{ url_for('all_signatures') }}" class="button">Докладніше ...</a>
-            </div>            
+                <img src="data:image/png;base64,{{ bar_chart }}" alt="Стовпчаста діаграма сигнатур">
+                <a href="{{ url_for('all_signatures') }}" class="button">Усі сигнатури</a>
+            </div>
+            <div class="chart">
+                <h2>IP-адреси з тривогами</h2>
+                <img src="data:image/png;base64,{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес з тривогами">
+                <a href="{{ url_for('all_alert_ips') }}" class="button">Усі тривожні IP</a>
+            </div>
         </div>
-        <div class="chart">
+
+        <div class="data-table-container">
             <h2>Географічне розташування IP-адрес з тривогами</h2>
-            <a href="{{ url_for('all_alert_ips') }}" class="button">Докладніше ...</a>
-        </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>IP-адреса</th>
+                        <th>Кількість тривог</th>
+                        <th>Місто</th>
+                        <th>Країна</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in geo_data %}
+                    <tr>
+                        <td><a href="{{ url_for('ip_details', ip_address=item.ip) }}">{{ item.ip }}</a></td>
+                        <td>{{ item.count }}</td>
+                        <td>{{ item.city }}</td>
+                        <td>{{ item.country }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>        
     </div>
+    
 </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Фільтрація за датою - Suricata</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,6 +31,12 @@
         .date-form {
             text-align: center;
             margin-bottom: 20px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            max-width: 400px;
+            margin: 20px auto;
         }
         .chart-container {
             display: flex;
@@ -44,6 +51,8 @@
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             text-align: center;
+            flex: 1 1 45%; /* Для двох колонок на великих екранах */
+            min-width: 300px;
         }
         .chart img {
             max-width: 100%;
@@ -51,7 +60,7 @@
         }
         .data-table-container {
             margin: 40px auto;
-            max-width: 800px;
+            max-width: 900px;
             text-align: left;
             background-color: #fff;
             padding: 20px;
@@ -65,55 +74,64 @@
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
         }
         th {
             background-color: #f2f2f2;
         }
-        .error-message {
-            color: red;
-            text-align: center;
+        .button {
+            display: inline-block;
+            padding: 10px 15px;
+            margin-top: 10px;
+            background-color: #007BFF;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container">        
         <nav>
-            <a href="{{ url_for('index') }}">Головна</a>
-            <a href="{{ url_for('date_filter') }}">Фільтр за датою</a>
+            <a href="/">Головна</a>
+            <a href="/date_filter">Фільтр по даті</a>
+            <a href="/fast-log">Переглянути Fast.log</a>
         </nav>
-        
-        <h1>Аналіз логів Suricata за заданою датою</h1>
 
-        <div class="date-form">
-            <form action="{{ url_for('date_filter') }}" method="get">
-                <label for="date">Виберіть дату:</label>
-                <input type="date" id="date" name="date" value="{{ selected_date or '' }}">
-                <button type="submit">Сформувати</button>
-            </form>
-        </div>
+        <h1>Фільтрація аналізу логів за датою</h1>
 
-        {% if error_message %}
-            <p class="error-message">{{ error_message }}</p>
-        {% elif selected_date %}
-            <h2 style="text-align: center;">Дані за {{ selected_date }}</h2>
+        <form method="POST" class="date-form">
+            <label for="filter_date">Виберіть дату:</label>
+            <input type="date" id="filter_date" name="filter_date" value="{{ filter_date if filter_date }}" required>
+            <button type="submit" class="button">Фільтрувати</button>
+        </form>
+
+        {% if filter_date and pie_chart %}
+            <h2 style="margin-top: 30px;">Результати аналізу за {{ filter_date }}</h2>
+
             <div class="chart-container">
                 <div class="chart">
                     <h2>Розподіл типів подій Suricata</h2>
-                    <img src="{{ pie_chart }}" alt="Діаграма розподілу подій">
-                </div>                
+                    <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                    <a href="{{ url_for('event_types_with_date', filter_date=filter_date) }}" class="button">Типи подій</a>
+                </div>
                 <div class="chart">
                     <h2>Кількість подій у часі</h2>
-                    <img src="{{ line_chart }}" alt="Графік кількості подій">
+                    <img src="data:image/png;base64,{{ line_chart }}" alt="Графік кількості подій">
                 </div>
                 <div class="chart">
                     <h2>Сигнатури тривог</h2>
-                    <img src="{{ bar_chart }}" alt="Діаграма сигнатур">
+                    <img src="data:image/png;base64,{{ bar_chart }}" alt="Діаграма сигнатур">
+                    <a href="{{ url_for('all_signatures_with_date', filter_date=filter_date) }}" class="button">Усі сигнатури</a>
                 </div>
                 <div class="chart">
                     <h2>IP-адреси з тривогами</h2>
-                    <img src="{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес">
+                    <img src="data:image/png;base64,{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес">
                 </div>
             </div> 
 
@@ -131,7 +149,7 @@
                     <tbody>
                         {% for item in geo_data %}
                         <tr>
-                            <td><a href="{{ url_for('ip_details', ip_address=item.ip) }}">{{ item.ip }}</a></td>
+                            <td><a href="{{ url_for('ip_details_with_date', ip_address=item.ip, filter_date=filter_date) }}">{{ item.ip }}</a></td>
                             <td>{{ item.count }}</td>
                             <td>{{ item.city }}</td>
                             <td>{{ item.country }}</td>
@@ -140,6 +158,14 @@
                     </tbody>
                 </table>                
             </div>
+        {% elif filter_date and not pie_chart %}
+             <p style="text-align: center; margin-top: 30px; font-size: 1.2em; color: #cc0000;">
+                Не знайдено подій Suricata за вибрану дату ({{ filter_date }}).
+            </p>
+        {% else %}
+             <p style="text-align: center; margin-top: 30px; font-size: 1.2em; color: #666;">
+                Будь ласка, виберіть дату для відображення аналітичних даних.
+            </p>
         {% endif %}
     </div>
 </body>

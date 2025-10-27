@@ -64,17 +64,35 @@
             <a href="/date_filter">Фільтр по даті</a>
         </nav>
 
-        <h1>Усі сигнатури тривог</h1>
+        <h1>Найчастіші сигнатури тривог</h1>
 
-        {% if signatures %}
-        <ul>
-            {% for signature in signatures %}
-            <li><a href="{{ url_for('ips_by_signature', signature=signature) }}">{{ signature }}</a></li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p>Сигнатур тривог не знайдено.</p>
-        {% endif %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Сигнатура (Signature)</th>
+                    <th class="count-cell">Кількість спрацювань</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if filter_date %}
+                    {% for item in signatures %}
+                    <tr>
+                        <!-- item.namesig містить назву сигнатури, item.cs - її кількість -->
+                        <td><a href="{{ url_for('ips_by_signature', signature=item.namesig, filter_date=filter_date) }}">{{ item.namesig }}</a></td>
+                        <td class="count-cell">{{ item.cs }}</td>
+                    </tr>
+                    {% endfor %}
+                {% elif not filter_date %}
+                    {% for item in signatures %}
+                    <tr>
+                        <!-- item.namesig містить назву сигнатури, item.cs - її кількість -->
+                        <td><a href="{{ url_for('ips_by_allsignature', signature=item.namesig) }}">{{ item.namesig }}</a></td>
+                        <td class="count-cell">{{ item.cs }}</td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>        
     </div>
 </body>
 </html>
