@@ -95,13 +95,14 @@
 
         <h1>Аналіз логів Suricata (Увесь період)</h1>
 
-        <div class="chart-container">
-            <div class="chart">
-                <h2>Розподіл типів подій Suricata</h2>
-                <!-- Зверніть увагу: pie_chart тепер містить base64 дані, як і в date_filter.html -->
-                <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
-                <a href="{{ url_for('event_types') }}" class="button">Типи подій</a>
-            </div>
+        <div class="chart">
+            <h2>Розподіл типів подій Suricata</h2>
+            <!-- Зверніть увагу: pie_chart тепер містить base64 дані, як і в date_filter.html -->
+            <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+            <a href="{{ url_for('event_types') }}" class="button">Типи подій</a>
+        </div>
+
+        <div class="chart-container">            
             <div class="chart">
                 <h2>Кількість подій у часі</h2>
                 <img src="data:image/png;base64,{{ line_chart }}" alt="Лінійний графік подій у часі">
@@ -116,31 +117,12 @@
                 <img src="data:image/png;base64,{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес з тривогами">
                 <a href="{{ url_for('all_alert_ips') }}" class="button">Усі тривожні IP</a>
             </div>
-        </div>
-
-        <div class="data-table-container">
-            <h2>Географічне розташування IP-адрес з тривогами</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>IP-адреса</th>
-                        <th>Кількість тривог</th>
-                        <th>Місто</th>
-                        <th>Країна</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in geo_data %}
-                    <tr>
-                        <td><a href="{{ url_for('ip_details', ip_address=item.ip) }}">{{ item.ip }}</a></td>
-                        <td>{{ item.count }}</td>
-                        <td>{{ item.city }}</td>
-                        <td>{{ item.country }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>        
+            <div class="chart">
+                <h2>IP-адреси, пакети з яких відкинуті</h2>
+                <img src="data:image/png;base64,{{ top_droped_ips_chart }}" alt="Діаграма IP-адрес, пакети яких відкинуті">
+                <a href="{{ url_for('all_droped_ips') }}" class="button">Усі відкинуті IP</a>
+            </div>
+        </div>       
     </div>
     
 </body>

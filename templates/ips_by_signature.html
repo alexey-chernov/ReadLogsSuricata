@@ -70,7 +70,7 @@
         {% if ips %}
         <ul>
             {% for ip in ips %}
-            <li><a href="{{ url_for('ip_details', ip_address=ip) }}">{{ ip }}</a></li>
+            <li><a href="{{ url_for('ip_details', ip_address=ip, event_type='alert') }}">{{ ip }}</a></li>
             {% endfor %}
         </ul>
         {% else %}

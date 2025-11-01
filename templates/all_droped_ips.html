@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Усі IP-адреси з тривогами</title>
+    <title>Усі IP-адреси, пакети яких відкинуті</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
         body {
@@ -73,7 +73,7 @@
             <a href="/date_filter">Фільтр по даті</a>
         </nav>
 
-        <h1>Географічне розташування усіх IP-адрес з тривогами</h1>
+        <h1>Географічне розташування усіх IP-адрес, пакенти з яких відкинуті</h1>
 
         {% if geo_data %}
         <div id="map"></div>
@@ -89,7 +89,7 @@
             <tbody>
                 {% for item in geo_data %}
                 <tr>
-                    <td><a href="{{ url_for('ip_details', ip_address=item.ip, event_type='alert') }}">{{ item.ip }}</a></td>
+                    <td><a href="{{ url_for('ip_details', ip_address=item.ip, event_type='drop') }}">{{ item.ip }}</a></td>
                     <td>{{ item.count }}</td>
                     <td>{{ item.city }}</td>
                     <td>{{ item.country }}</td>

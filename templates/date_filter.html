@@ -114,12 +114,13 @@
         {% if filter_date and pie_chart %}
             <h2 style="margin-top: 30px;">Результати аналізу за {{ filter_date }}</h2>
 
-            <div class="chart-container">
-                <div class="chart">
-                    <h2>Розподіл типів подій Suricata</h2>
-                    <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
-                    <a href="{{ url_for('event_types_with_date', filter_date=filter_date) }}" class="button">Типи подій</a>
-                </div>
+            <div class="chart">
+                <h2>Розподіл типів подій Suricata</h2>
+                <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                <a href="{{ url_for('event_types_with_date', filter_date=filter_date) }}" class="button">Типи подій</a>
+            </div>            
+
+            <div class="chart-container">                
                 <div class="chart">
                     <h2>Кількість подій у часі</h2>
                     <img src="data:image/png;base64,{{ line_chart }}" alt="Графік кількості подій">
@@ -132,32 +133,14 @@
                 <div class="chart">
                     <h2>IP-адреси з тривогами</h2>
                     <img src="data:image/png;base64,{{ top_alert_ips_chart }}" alt="Діаграма IP-адрес">
+                    <a href="{{ url_for('all_alert_ips_with_date', filter_date=filter_date) }}" class="button">Усі тривожні IP</a>
                 </div>
-            </div> 
-
-            <div class="data-table-container">
-                <h2>Географічне розташування IP-адрес з тривогами</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>IP-адреса</th>
-                            <th>Кількість тривог</th>
-                            <th>Місто</th>
-                            <th>Країна</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in geo_data %}
-                        <tr>
-                            <td><a href="{{ url_for('ip_details_with_date', ip_address=item.ip, filter_date=filter_date) }}">{{ item.ip }}</a></td>
-                            <td>{{ item.count }}</td>
-                            <td>{{ item.city }}</td>
-                            <td>{{ item.country }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>                
-            </div>
+                <div class="chart">
+                    <h2>IP-адреси, пакети з яких відкинуті</h2>
+                    <img src="data:image/png;base64,{{ top_droped_ips_chart }}" alt="Діаграма IP-адрес">
+                    <a href="{{ url_for('all_droped_ips_with_date', filter_date=filter_date) }}" class="button">Усі відкинуті IP</a>
+                </div>
+            </div>             
         {% elif filter_date and not pie_chart %}
              <p style="text-align: center; margin-top: 30px; font-size: 1.2em; color: #cc0000;">
                 Не знайдено подій Suricata за вибрану дату ({{ filter_date }}).
