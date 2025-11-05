@@ -195,9 +195,10 @@ def process_analysis_from_db(filter_date=None):
 
 
 # --- Маршрути Flask ---
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
     # Головна сторінка без фільтрації (аналіз за весь період)
+    
     pie_chart, bar_chart, line_chart, geo_data, top_alert_ips_chart, top_droped_ips_chart = process_analysis_from_db()
     return render_template('index.html', 
                            pie_chart=pie_chart, 
@@ -344,6 +345,58 @@ def date_filter():
                            top_droped_ips_chart=top_droped_ips_chart,
                            filter_date=filter_date)
 
+# ЕТАП 5: СТОРІНКА ІНФОРМАЦІ ПО ЗАДАНУ IP-АДРЕСУ
+@app.route('/ip_info', methods=['GET', 'POST'])
+def ip_info():
+    ipaddress = whois_info = None
+    geo_info = {}
+    ip_activity = {}
+                           
+    if request.method == 'POST':
+        ipaddress = request.form.get('ipaddress')
+        if ipaddress:      
+            # 1. WHOIS-інформація
+            whois_info = get_whois_info(ipaddress)
+
+            # 2. Географічна інформація
+            geo_info = {}
+            if os.path.exists(GEOIP_DB_PATH):
+                try:
+                    reader = geoip2.database.Reader(GEOIP_DB_PATH)
+                    response = reader.city(ipaddress)
+                    geo_info = {
+                        'city': response.city.name or 'N/A',
+                        'country': response.country.name or 'N/A',
+                        'latitude': response.location.latitude,
+                        'longitude': response.location.longitude
+                    }
+                    reader.close()
+                except Exception:
+                    geo_info = {'error': 'Географічну інформацію не знайдено.'}
+            else:
+                geo_info = {'error': 'База даних GeoLite2 не знайдена.'}
+
+            # 3. Активність за IP
+            data_frame = get_data_from_db(f"SELECT * FROM events")
+            
+            # Перетворюємо стовпець 'timestamp' на об'єкти datetime
+            if 'timestamp' in data_frame.columns:
+                data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce')
+
+            ip_activity = data_frame[(data_frame['src_ip'] == ipaddress) | (data_frame['dest_ip'] == ipaddress)]
+            ip_activity = ip_activity.to_dict('records')
+
+            if whois_info and not isinstance(whois_info, dict):
+                whois_info = whois_info.__dict__
+            else:
+                whois_info = whois_info
+        
+    return render_template('ip_info.html',
+                           ip_address=ipaddress,
+                           whois_info=whois_info,
+                           geo_info=geo_info,
+                           ip_activity=ip_activity)
+
 @app.route('/fast-log')
 def fast_log_page():
     fast_log_file_path = '/var/log/suricata/fast.log'
@@ -384,54 +437,8 @@ def ip_details(ip_address, event_type):
     else:
         geo_info = {'error': 'База даних GeoLite2 не знайдена.'}
 
-    print(event_type)
-
     # 3. Активність за IP
     data_frame = get_data_from_db(f"SELECT * FROM events WHERE event_type = '{event_type}'")
-    
-    # Перетворюємо стовпець 'timestamp' на об'єкти datetime
-    if 'timestamp' in data_frame.columns:
-        data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce')
-
-    ip_activity = data_frame[(data_frame['src_ip'] == ip_address) | (data_frame['dest_ip'] == ip_address)]
-    ip_activity_list = ip_activity.to_dict('records')
-
-    if whois_info and not isinstance(whois_info, dict):
-        whois_dict = whois_info.__dict__
-    else:
-        whois_dict = whois_info
-
-    return render_template('ip_details.html',
-                           ip_address=ip_address,
-                           whois_info=whois_dict,
-                           geo_info=geo_info,
-                           ip_activity=ip_activity_list)
-
-@app.route('/ip_details_with_date/<ip_address>/<event_type>/<filter_date>')
-def ip_details_with_date(ip_address, event_type, filter_date):
-    # 1. WHOIS-інформація
-    whois_info = get_whois_info(ip_address)
-
-    # 2. Географічна інформація
-    geo_info = {}
-    if os.path.exists(GEOIP_DB_PATH):
-        try:
-            reader = geoip2.database.Reader(GEOIP_DB_PATH)
-            response = reader.city(ip_address)
-            geo_info = {
-                'city': response.city.name or 'N/A',
-                'country': response.country.name or 'N/A',
-                'latitude': response.location.latitude,
-                'longitude': response.location.longitude
-            }
-            reader.close()
-        except Exception:
-            geo_info = {'error': 'Географічну інформацію не знайдено.'}
-    else:
-        geo_info = {'error': 'База даних GeoLite2 не знайдена.'}
-
-    # 3. Активність за IP
-    data_frame = get_data_from_db(f"SELECT * FROM events WHERE SUBSTR(timestamp, 1, 10) = '{filter_date}' AND event_type = '{event_type}'")
     
     # Перетворюємо стовпець 'timestamp' на об'єкти datetime
     if 'timestamp' in data_frame.columns:

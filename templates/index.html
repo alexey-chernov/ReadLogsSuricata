@@ -90,6 +90,7 @@
         <nav>
             <a href="/">Головна</a>
             <a href="/date_filter">Фільтр по даті</a>
+            <a href="/ip_info">Інформація по IP</a>
             <a href="/fast-log">Переглянути Fast.log</a>
         </nav>
 
@@ -97,7 +98,6 @@
 
         <div class="chart">
             <h2>Розподіл типів подій Suricata</h2>
-            <!-- Зверніть увагу: pie_chart тепер містить base64 дані, як і в date_filter.html -->
             <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
             <a href="{{ url_for('event_types') }}" class="button">Типи подій</a>
         </div>
@@ -109,7 +109,7 @@
             </div>
             <div class="chart">
                 <h2>Сигнатури тривог</h2>
-                <img src="data:image/png;base64,{{ bar_chart }}" alt="Стовпчаста діаграма сигнатур">
+                <img src="data:image/png;base64,{{ bar_chart }}" alt="Діаграма сигнатур">
                 <a href="{{ url_for('all_signatures') }}" class="button">Усі сигнатури</a>
             </div>
             <div class="chart">
@@ -122,7 +122,7 @@
                 <img src="data:image/png;base64,{{ top_droped_ips_chart }}" alt="Діаграма IP-адрес, пакети яких відкинуті">
                 <a href="{{ url_for('all_droped_ips') }}" class="button">Усі відкинуті IP</a>
             </div>
-        </div>       
+        </div>   
     </div>
     
 </body>
