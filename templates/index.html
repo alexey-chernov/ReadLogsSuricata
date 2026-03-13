@@ -96,13 +96,12 @@
 
         <h1>Аналіз логів Suricata (Увесь період)</h1>
 
-        <div class="chart">
-            <h2>Розподіл типів подій Suricata</h2>
-            <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
-            <a href="{{ url_for('event_types') }}" class="button">Типи подій</a>
-        </div>
-
-        <div class="chart-container">            
+        <div class="chart-container">
+            <div class="chart">
+                <h2>Розподіл типів подій Suricata</h2>
+                <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                <a href="{{ url_for('event_types') }}" class="button">Типи подій</a>
+            </div>
             <div class="chart">
                 <h2>Кількість подій у часі</h2>
                 <img src="data:image/png;base64,{{ line_chart }}" alt="Лінійний графік подій у часі">

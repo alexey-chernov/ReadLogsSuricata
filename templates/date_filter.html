@@ -115,13 +115,12 @@
         {% if filter_date and pie_chart %}
             <h2 style="margin-top: 30px;">Результати аналізу за {{ filter_date }}</h2>
 
-            <div class="chart">
-                <h2>Розподіл типів подій Suricata</h2>
-                <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
-                <a href="{{ url_for('event_types_with_date', filter_date=filter_date) }}" class="button">Типи подій</a>
-            </div>            
-
-            <div class="chart-container">                
+            <div class="chart-container">
+                <div class="chart">
+                    <h2>Розподіл типів подій Suricata</h2>
+                    <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                    <a href="{{ url_for('event_types_with_date', filter_date=filter_date) }}" class="button">Типи подій</a>
+                </div>
                 <div class="chart">
                     <h2>Кількість подій у часі</h2>
                     <img src="data:image/png;base64,{{ line_chart }}" alt="Графік кількості подій">

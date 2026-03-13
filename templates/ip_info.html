@@ -24,6 +24,19 @@
             border-bottom: 2px solid #ccc;
             padding-bottom: 5px;
         }
+        nav {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+        nav a {
+            margin: 0 15px;
+            color: blue;
+            text-decoration: none;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
         pre {
             background-color: #f8f8f8;
             padding: 10px;
@@ -52,11 +65,31 @@
             height: 400px;
             margin-top: 20px;
         }
+        .button {
+            display: inline-block;
+            padding: 10px 15px;
+            margin-top: 10px;
+            background-color: #007BFF;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
     <div class="container">        
-        <p><a href="/">&#8592; Повернутися на головну</a></p>
+        <nav>
+            <a href="/">Головна</a>
+            <a href="/date_filter">Фільтр по даті</a>
+            <a href="/ip_info">Інформація по IP</a>
+            <a href="/fast-log">Переглянути Fast.log</a>
+        </nav>
+
+        <h1>Фільтрація аналізу логів за IP-адресою</h1>
 
         <form method="POST" class="date-form">
             <label for="ipaddress">Введіть IP-адресу:</label>
@@ -101,6 +134,16 @@
             {% endif %}
 
             <h2>Активність з файлу eve.json</h2>
+            {% if pie_chart %}
+                <div class="chart-container">
+                    <div class="chart">
+                        <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
+                    </div>
+                </div>
+            {% else %}
+                <p>Активності для цієї IP-адреси не знайдено.</p>
+            {% endif %}
+
             {% if ip_activity %}
                 <table class="activity-table">
                     <thead>

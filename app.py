@@ -207,7 +207,7 @@ def index():
                            geo_data=geo_data,
                            top_alert_ips_chart=top_alert_ips_chart,
                            top_droped_ips_chart=top_droped_ips_chart)
-
+    
 # ЕТАП 1: Сторінка з типами подій
 @app.route('/event_types')
 def event_types():
@@ -348,7 +348,7 @@ def date_filter():
 # ЕТАП 5: СТОРІНКА ІНФОРМАЦІ ПО ЗАДАНУ IP-АДРЕСУ
 @app.route('/ip_info', methods=['GET', 'POST'])
 def ip_info():
-    ipaddress = whois_info = None
+    pie_chart = ipaddress = whois_info = None
     geo_info = {}
     ip_activity = {}
                            
@@ -377,8 +377,12 @@ def ip_info():
                 geo_info = {'error': 'База даних GeoLite2 не знайдена.'}
 
             # 3. Активність за IP
-            data_frame = get_data_from_db(f"SELECT * FROM events")
+                              
+            query_pie = f"SELECT event_type, count(event_type) AS count FROM events WHERE src_ip = '{ipaddress}' OR dest_ip = '{ipaddress}' GROUP BY event_type ORDER BY count DESC"
+            df_pie = get_data_from_db(query_pie, '')
+            pie_chart = generate_pie_chart(df_pie)
             
+            data_frame = get_data_from_db(f"SELECT * FROM events")
             # Перетворюємо стовпець 'timestamp' на об'єкти datetime
             if 'timestamp' in data_frame.columns:
                 data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce')
@@ -395,7 +399,8 @@ def ip_info():
                            ip_address=ipaddress,
                            whois_info=whois_info,
                            geo_info=geo_info,
-                           ip_activity=ip_activity)
+                           ip_activity=ip_activity,
+                           pie_chart=pie_chart)
 
 @app.route('/fast-log')
 def fast_log_page():
