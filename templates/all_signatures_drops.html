@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IP-адреси для події: {{ event_type }}</title>
+    <title>Усі сигнатури тривог</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -26,9 +26,8 @@
             list-style-type: none;
             padding: 0;
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 10px;
-            justify-content: center;
         }
         li {
             background-color: #f9f9f9;
@@ -65,18 +64,35 @@
             <a href="/date_filter">Фільтр по даті</a>
         </nav>
 
-        <h1>IP-адреси для події: {{ event_type }}</h1>
+        <h1>Найчастіші сигнатури відкинутих пакетів</h1>
 
-        {% if ips %}
-        <ul>
-            {% for ip in ips %}
-            <li><a href="{{ url_for('ip_details', ip_address=ip, event_type=event_type) }}">{{ ip }}</a></li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p>IP-адрес для цього типу події не знайдено.</p>
-        {% endif %}
-                
+        <table>
+            <thead>
+                <tr>
+                    <th>Сигнатура (Signature)</th>
+                    <th class="count-cell">Кількість спрацювань</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if filter_date %}
+                    {% for item in signatures %}
+                    <tr>
+                        <!-- item.namesig містить назву сигнатури, item.cs - її кількість -->
+                        <td><a href="{{ url_for('ips_by_signature_drop', signature=item.namesig, filter_date=filter_date) }}">{{ item.namesig }}</a></td>
+                        <td class="count-cell">{{ item.cs }}</td>
+                    </tr>
+                    {% endfor %}
+                {% elif not filter_date %}
+                    {% for item in signatures %}
+                    <tr>
+                        <!-- item.namesig містить назву сигнатури, item.cs - її кількість -->
+                        <td><a href="{{ url_for('ips_by_allsignature_drop', signature=item.namesig) }}">{{ item.namesig }}</a></td>
+                        <td class="count-cell">{{ item.cs }}</td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>        
     </div>
 </body>
 </html>

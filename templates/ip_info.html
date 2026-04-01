@@ -20,6 +20,12 @@
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
         h1, h2, h3 {
             border-bottom: 2px solid #ccc;
             padding-bottom: 5px;
@@ -133,7 +139,7 @@
                 <pre>{{ whois_info | tojson(indent=2) }}</pre>
             {% endif %}
 
-            <h2>Активність з файлу eve.json</h2>
+            <h2>Активність з файлу eve.json по даній ІР-адресі</h2>
             {% if pie_chart %}
                 <div class="chart-container">
                     <div class="chart">

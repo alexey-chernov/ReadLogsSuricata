@@ -136,6 +136,11 @@
                     <a href="{{ url_for('all_alert_ips_with_date', filter_date=filter_date) }}" class="button">Усі тривожні IP</a>
                 </div>
                 <div class="chart">
+                    <h2>Сигнатури відкинутих пакетів</h2>
+                    <img src="data:image/png;base64,{{ bar_chart_drop }}" alt="Діаграма сигнатур">
+                    <a href="{{ url_for('all_signatures_drops_with_date', filter_date=filter_date) }}" class="button">Усі сигнатури</a>
+                </div>
+                <div class="chart">
                     <h2>IP-адреси, пакети з яких відкинуті</h2>
                     <img src="data:image/png;base64,{{ top_droped_ips_chart }}" alt="Діаграма IP-адрес">
                     <a href="{{ url_for('all_droped_ips_with_date', filter_date=filter_date) }}" class="button">Усі відкинуті IP</a>

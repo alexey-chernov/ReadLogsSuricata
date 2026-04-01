@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IP-адреси для події: {{ event_type }}</title>
+    <title>IP-адреси для сигнатури: {{ signature }}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -65,18 +65,17 @@
             <a href="/date_filter">Фільтр по даті</a>
         </nav>
 
-        <h1>IP-адреси для події: {{ event_type }}</h1>
+        <h1>IP-адреси для сигнатури: {{ signature }}</h1>
 
         {% if ips %}
         <ul>
             {% for ip in ips %}
-            <li><a href="{{ url_for('ip_details', ip_address=ip, event_type=event_type) }}">{{ ip }}</a></li>
+            <li><a href="{{ url_for('ip_details', ip_address=ip, event_type='drop') }}">{{ ip }}</a></li>
             {% endfor %}
         </ul>
         {% else %}
-        <p>IP-адрес для цього типу події не знайдено.</p>
+        <p>IP-адрес для цієї сигнатури не знайдено.</p>
         {% endif %}
-                
     </div>
 </body>
 </html>

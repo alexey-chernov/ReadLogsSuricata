@@ -117,6 +117,11 @@
                 <a href="{{ url_for('all_alert_ips') }}" class="button">Усі тривожні IP</a>
             </div>
             <div class="chart">
+                <h2>Сигнатури відкинутих пакетів</h2>
+                <img src="data:image/png;base64,{{ bar_chart_drop }}" alt="Діаграма сигнатур">
+                <a href="{{ url_for('all_signatures_drops') }}" class="button">Усі сигнатури</a>
+            </div>
+            <div class="chart">
                 <h2>IP-адреси, пакети з яких відкинуті</h2>
                 <img src="data:image/png;base64,{{ top_droped_ips_chart }}" alt="Діаграма IP-адрес, пакети яких відкинуті">
                 <a href="{{ url_for('all_droped_ips') }}" class="button">Усі відкинуті IP</a>
