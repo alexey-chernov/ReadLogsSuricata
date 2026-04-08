@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IP-адреси для події: {{ event_type }}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -19,22 +20,25 @@
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-        h1 {
+        h1, h2 {
             text-align: center;
         }
-        ul {
-            list-style-type: none;
-            padding: 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
         }
-        li {
-            background-color: #f9f9f9;
-            padding: 8px 12px;
-            border-radius: 5px;
+        th, td {
             border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f9f9f9;
         }
         a {
             color: #007BFF;
@@ -42,6 +46,10 @@
         }
         a:hover {
             text-decoration: underline;
+        }
+        #map {
+            height: 500px;
+            margin-top: 20px;
         }
         nav {
             text-align: center;
@@ -65,18 +73,55 @@
             <a href="/date_filter">Фільтр по даті</a>
         </nav>
 
-        <h1>IP-адреси для події: {{ event_type }}</h1>
+        <h1>Географічне розташування усіх IP-адрес для події: {{ event_type }}</h1>
 
-        {% if ips %}
-        <ul>
-            {% for ip in ips %}
-            <li><a href="{{ url_for('ip_details', ip_address=ip, event_type=event_type) }}">{{ ip }}</a></li>
+        {% if geo_data %}
+        <div id="map"></div>
+        <table>
+            <thead>
+                <tr>
+                    <th>IP-адреса</th>
+                    <th>Кількість тривог</th>
+                    <th>Місто</th>
+                    <th>Країна</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in geo_data %}
+                <tr>
+                    <td><a href="{{ url_for('ip_details', ip_address=item.ip, event_type=event_type) }}">{{ item.ip }}</a></td>
+                    <td>{{ item.count }}</td>
+                    <td>{{ item.city }}</td>
+                    <td>{{ item.country }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            var map = L.map('map').setView([0, 0], 2); // Центруємо карту на 0,0 з рівнем зуму 2
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            var markers = [];
+            {% for item in geo_data %}
+                {% if item.latitude and item.longitude %}
+                    var marker = L.marker([{{ item.latitude }}, {{ item.longitude }}]).addTo(map)
+                        .bindPopup(`<b>{{ item.ip }}</b><br>Кількість: {{ item.count }}<br>{{ item.city }}, {{ item.country }}`);
+                    markers.push(marker);
+                {% endif %}
             {% endfor %}
-        </ul>
+            
+            if (markers.length > 0) {
+                var group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds());
+            }
+
+        </script>
         {% else %}
-        <p>IP-адрес для цього типу події не знайдено.</p>
+        <p>IP-адрес для події {{ event_type }} не знайдено.</p>
         {% endif %}
-                
     </div>
 </body>
 </html>

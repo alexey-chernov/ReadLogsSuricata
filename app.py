@@ -202,17 +202,6 @@ def process_analysis_from_db(filter_date=None):
 
     return pie_chart, bar_chart, bar_chart_drop, line_chart, geo_data, top_alert_ips_chart, top_droped_ips_chart
 
-#def process_analysis_from_db_events(event_name):
-#    filter_event_name = f"WHERE event_type = '{event_name}'"
-    
-#    query = f"SELECT src_ip, COUNT(src_ip) AS count FROM events {filter_event_name} AND src_ip IS NOT NULL GROUP BY src_ip ORDER BY count DESC LIMIT 10"
-#    df_geo_ips = get_data_from_db(query,[])
-    
-#    geo_data = get_geo_data(df_geo_ips)
-#    top_event_ips_chart = get_data_from_db(df_geo_ips, [])
-    
-#    return geo_data, top_event_ips_chart
-
 # --- Маршрути Flask ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -244,16 +233,10 @@ def event_types():
 # ЕТАП 1.1: Сторінка з IP-адресами для вибраного типу події
 @app.route('/event_type/<event_type>')
 def ips_by_event_type(event_type):
-    query = "SELECT src_ip, dest_ip FROM events WHERE event_type = ?"
-    data_frame = get_data_from_db(query, (event_type,))
-    ips = set()
-    for _, row in data_frame.iterrows():
-        if row['src_ip']:
-            ips.add(row['src_ip'])
-        if row['dest_ip']:
-            ips.add(row['dest_ip'])            
-    return render_template('ips_by_event_type.html', ips=sorted(list(ips)), event_type=event_type)
-
+    query = f"SELECT src_ip, COUNT(src_ip) as count FROM events WHERE event_type = '{event_type}' GROUP BY src_ip"
+    data_frame = get_data_from_db(query)
+    geo_data = get_geo_data(data_frame)
+    return render_template('ips_by_event_type.html', geo_data=geo_data, event_type=event_type)
 
 # ЕТАП 1.2: Сторінка з типами подій по заданій даті
 @app.route('/event_types_with_date/<filter_date>')
@@ -267,16 +250,11 @@ def event_types_with_date(filter_date):
 
 # ЕТАП 1.3: Сторінка з IP-адресами для вибраного типу події по заданій даті
 @app.route('/event_type_with_date/<event_type>/<filter_date>')
-def ips_by_event_type_with_date(event_type, filter_date):    
-    query = f"SELECT src_ip, dest_ip FROM events WHERE event_type = ? AND SUBSTR(timestamp, 1, 10) = '{filter_date}'"
-    data_frame = get_data_from_db(query, (event_type,))
-    ips = set()
-    for _, row in data_frame.iterrows():
-        if row['src_ip']:
-            ips.add(row['src_ip'])
-        if row['dest_ip']:
-            ips.add(row['dest_ip'])            
-    return render_template('ips_by_event_type.html', ips=sorted(list(ips)), event_type=event_type)
+def ips_by_event_type_with_date(event_type, filter_date):        
+    query = f"SELECT src_ip, COUNT(src_ip) as count FROM events WHERE event_type = '{event_type}' AND SUBSTR(timestamp, 1, 10) = '{filter_date}' GROUP BY src_ip"
+    data_frame = get_data_from_db(query)    
+    geo_data = get_geo_data(data_frame)           
+    return render_template('ips_by_event_type.html', geo_data=geo_data, event_type=event_type)
 
 # ЕТАП 2.1: Сторінка з усіма сигнатурами тривог
 @app.route('/all_signatures')
