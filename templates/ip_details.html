@@ -56,6 +56,13 @@
 </head>
 <body>
     <div class="container">
+        <nav>
+            <a href="/">Головна</a>
+            <a href="/date_filter">Фільтр по даті</a>
+            <a href="/period_filter">Фільтр за період</a>
+            <a href="/ip_info">Інформація по IP</a>
+            <a href="/fast-log">Переглянути Fast.log</a>
+        </nav>
         <h1>Деталі про IP-адресу: {{ ip_address }}</h1>
         <p><a href="/">&#8592; Повернутися на головну</a></p>
 
@@ -99,6 +106,7 @@
                         <th>Дата й Час</th>
                         <th>Джерело IP:Порт</th>
                         <th>Призначення IP:Порт</th>
+                        <th>Протокол</th>
                         <th>Тип події</th>
                         <th>Сигнатура</th>
                     </tr>
@@ -109,6 +117,7 @@
                         <td>{{ event.timestamp.strftime('%d-%m-%Y %H:%M:%S')}}</td>
                         <td>{{ event.src_ip }}:{{ event.src_port }}</td>
                         <td>{{ event.dest_ip }}:{{ event.dest_port }}</td>
+                        <td>{{ event.proto }}</td>
                         <td>{{ event.event_type }}</td>
                         <td>{% if event.signature %}{{ event.signature }}{% else %}N/A{% endif %}</td>
                     </tr>

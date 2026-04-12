@@ -96,107 +96,57 @@
             <a href="/fast-log">Переглянути Fast.log</a>
         </nav>
 
-        <h1>Фільтрація аналізу логів за IP-адресою</h1>
+        <h1>Фільтрація аналізу логів за вказаний період</h1>
 
         <form method="POST" class="date-form">
-            <label for="ipaddress">Введіть IP-адресу:</label>
-            <input type="text" id="ipaddress" name="ipaddress" value="{{ ipaddress if ipaddress }}" required>
+            <label for="filter_date">Вкажіть період:</label>
+            <label for="filter_date">З:</label>
+            <input type="date" id="filter_date_from" name="filter_date_from" value="{{ filter_date_from if filter_date_from }}" required>
+            <input type="time" id="filter_time_from" name="filter_time_from" value="{{ filter_time_from if filter_time_from }}" required>
+            <label for="filter_date">По:</label>
+            <input type="date" id="filter_date_to" name="filter_date_to" value="{{ filter_date_to if filter_date_to }}" required>
+            <input type="time" id="filter_time_to" name="filter_time_to" value="{{ filter_time_to if filter_time_to }}" required>
             <button type="submit" class="button">Знайти</button>            
         </form>
 
-        {% if ip_address %}
+        {% if period %}
 
-            <h1>Деталі про IP-адресу: {{ ip_address }}</h1>
+            <h1>Деталі за період {{ period }}</h1>
 
-            <h2>Географічне розташування</h2>
-            {% if 'error' in geo_info %}
-                <p style="color:red;">{{ geo_info.error }}</p>
-            {% else %}
-                <table>
-                    <tr>
-                        <th>Місто:</th>
-                        <td>{{ geo_info.city }}</td>
-                    </tr>
-                    <tr>
-                        <th>Країна:</th>
-                        <td>{{ geo_info.country }}</td>
-                    </tr>
-                    <tr>
-                        <th>Широта:</th>
-                        <td>{{ geo_info.latitude }}</td>
-                    </tr>
-                    <tr>
-                        <th>Довгота:</th>
-                        <td>{{ geo_info.longitude }}</td>
-                    </tr>
-                </table>
-                <div id="map"></div>
-            {% endif %}
-
-            <h2>Whois-інформація</h2>
-            {% if 'error' in whois_info %}
-                <p style="color:red;">{{ whois_info.error }}</p>
-            {% else %}
-                <pre>{{ whois_info | tojson(indent=2) }}</pre>
-            {% endif %}
-
-            <h2>Активність з файлу eve.json по даній ІР-адресі</h2>
-            {% if pie_chart %}
-                <div class="chart-container">
-                    <div class="chart">
-                        <img src="data:image/png;base64,{{ pie_chart }}" alt="Кругова діаграма типів подій">
-                    </div>
-                </div>
-            {% else %}
-                <p>Активності для цієї IP-адреси не знайдено.</p>
-            {% endif %}
-
-            {% if ip_activity %}
+            {% if dataframe %}
                 <table class="activity-table">
                     <thead>
                         <tr>
                             <th>Дата й Час</th>
+                            <th>Тип події</th>
                             <th>Джерело IP:Порт</th>
                             <th>Призначення IP:Порт</th>
                             <th>Протокол</th>
-                            <th>Тип події</th>
                             <th>Сигнатура</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for event in ip_activity %}
+                        {% for event in dataframe %}
                         <tr>
-                            <td>{{ event.timestamp.strftime('%d-%m-%Y %H:%M:%S')}}</td>
-                            <td>{{ event.src_ip }}:{{ event.src_port }}</td>
-                            <td>{{ event.dest_ip }}:{{ event.dest_port }}</td>
-                            <td>{{ event.proto }}</td>
+                            <td>{{ event.timestamp.strftime('%d-%m-%Y %H:%M:%S')}}</td>                        
                             <td>{{ event.event_type }}</td>
-                            <td>{% if event.signature %}{{ event.signature }}{% else %}N/A{% endif %}</td>
+                            <td>{% if event.src_ip and event.src_port%}{{ event.src_ip }}:{{ event.src_port }}{% else %} {% endif %}</td>
+                            <td>{% if event.dest_ip and event.dest_port %}{{ event.dest_ip }}:{{ event.dest_port }}{% else %} {% endif %}</td>
+                            <td>{% if event.proto %}{{ event.proto }}{% else %} {% endif %}</td>
+                            <td>{% if event.signature %}{{ event.signature }}{% else %} {% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             {% else %}
-                <p>Активності для цієї IP-адреси не знайдено.</p>
-            {% endif %}        
+                <p>Активності для вибраного періоду не знайдено.</p>
+            {% endif %}
         {% else %}
              <p style="text-align: center; margin-top: 30px; font-size: 1.2em; color: #666;">
-                Будь ласка, введіть IP-адресу для відображення інформації.
+                Будь ласка, вкажіть період для відображення інформації.
             </p>
         {% endif %}
     </div>
-    
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    {% if geo_info.latitude and geo_info.longitude %}
-    <script>
-        var map = L.map('map').setView([{{ geo_info.latitude }}, {{ geo_info.longitude }}], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-        L.marker([{{ geo_info.latitude }}, {{ geo_info.longitude }}]).addTo(map)
-            .bindPopup(`<b>{{ ip_address | tojson }}</b><br>{{ geo_info.city | tojson }}, {{ geo_info.country | tojson }}`).openPopup();
-    </script>
-    {% endif %}
     
 </body>
 </html>
