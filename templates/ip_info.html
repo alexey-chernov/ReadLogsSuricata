@@ -155,22 +155,24 @@
                 <table class="activity-table">
                     <thead>
                         <tr>
+                            <th>ID події</th>
                             <th>Дата й Час</th>
+                            <th>Тип події</th>
                             <th>Джерело IP:Порт</th>
                             <th>Призначення IP:Порт</th>
                             <th>Протокол</th>
-                            <th>Тип події</th>
                             <th>Сигнатура</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for event in ip_activity %}
                         <tr>
+                            <td><a href="{{ url_for('event_details', event_id=event.id) }}">{{ event.id }}</a></td>
                             <td>{{ event.timestamp.strftime('%d-%m-%Y %H:%M:%S')}}</td>
+                            <td>{{ event.event_type }}</td>
                             <td>{{ event.src_ip }}:{{ event.src_port }}</td>
                             <td>{{ event.dest_ip }}:{{ event.dest_port }}</td>
                             <td>{{ event.proto }}</td>
-                            <td>{{ event.event_type }}</td>
                             <td>{% if event.signature %}{{ event.signature }}{% else %}N/A{% endif %}</td>
                         </tr>
                         {% endfor %}

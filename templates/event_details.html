@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Деталі події #{{ event.id if event else event_id }}</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px;
+      color: #1f2937;
+    }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      background: #ffffff;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px 16px;
+    }
+    .meta-label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+    }
+    .meta-value {
+      font-weight: 600;
+      word-break: break-word;
+    }
+    pre.json-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      max-height: 600px;
+      margin: 0;
+    }
+    table.kv-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+    table.kv-table th,
+    table.kv-table td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    table.kv-table th {
+      width: 220px;
+      color: #374151;
+      background: #f9fafb;
+    }
+  </style>
+</head>
+<body>
+  {% if not event %}
+    <div class="card">
+      <h2>Подію #{{ event_id }} не знайдено</h2>
+      <p>Запис із таким ідентифікатором відсутній у поточній таблиці.</p>
+    </div>
+  {% else %}
+    <h1>Подія #{{ event.id }} — {{ event.event_type }}</h1>
+
+    <div class="card">
+      <div class="meta-grid">
+        <div>
+          <div class="meta-label">Час</div>
+          <div class="meta-value">{{ event.timestamp }}</div>
+        </div>
+        <div>
+          <div class="meta-label">Джерело (src)</div>
+          <div class="meta-value">{{ event.src_ip or '-' }}:{{ event.src_port or '-' }}</div>
+        </div>
+        <div>
+          <div class="meta-label">Призначення (dest)</div>
+          <div class="meta-value">{{ event.dest_ip or '-' }}:{{ event.dest_port or '-' }}</div>
+        </div>
+        <div>
+          <div class="meta-label">Протокол</div>
+          <div class="meta-value">{{ event.proto or '-' }}</div>
+        </div>
+      </div>
+
+      {% if event.signature %}
+        <p style="margin-top: 14px;">
+          <strong>Сигнатура:</strong> {{ event.signature }}
+          {% if event.severity %}(Severity: {{ event.severity }}){% endif %}
+        </p>
+      {% endif %}
+
+      <div>
+          <div class="meta-label">Хост</div>
+          <div class="meta-value">{{ event.host or '-' }}</div>
+      </div>
+
+      <div>
+          <div class="meta-label">URL-адреса</div>
+          <div class="meta-value">{{ event.url or '-' }}</div>
+      </div>
+
+      <div>
+          <div class="meta-label">HTTP-заголовки</div>
+          <div class="meta-value">{{ event.http_user_agent or '-' }}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Деталі події (JSONB)</h2>
+
+      {% if event_details_pretty %}
+        <pre class="json-box"><code>{{ event_details_pretty }}</code></pre>
+
+        {% if event_details_obj is mapping %}
+          <h3 style="margin-top: 20px;">Ключі верхнього рівня</h3>
+          <table class="kv-table">
+            <tbody>
+              {% for key, val in event_details_obj.items() %}
+                <tr>
+                  <th>{{ key }}</th>
+                  <td>
+                    {% if val is mapping or val is iterable and val is not string %}
+                      <code>{{ val | tojson }}</code>
+                    {% else %}
+                      {{ val }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% else %}
+        <p>Додаткові деталі в <code>event_details</code> відсутні.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+</body>
+</html>

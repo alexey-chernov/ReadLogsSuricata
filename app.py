@@ -1,5 +1,7 @@
 import pandas as pd
 import json
+import matplotlib
+matplotlib.use('Agg')  # Обов'язково до імпорту pyplot!
 import matplotlib.pyplot as plt
 import os
 import re
@@ -9,24 +11,62 @@ import requests
 from requests.exceptions import RequestException
 import whois
 from datetime import datetime
-import sqlite3
+import psycopg2
+from psycopg2 import sql
+from sqlalchemy import create_engine
 import io
 import base64
 
 app = Flask(__name__)
 
-# Шлях до файлу бази даних SQLite
-DB_FILE = '/var/log/suricata/suricata_logs.db'
-# Шлях до бази GeoLite2 (потрібна для гео-визначення)
-GEOIP_DB_PATH = 'GeoLite2-City.mmdb' 
-# GEOIP_DB_PATH = '/root/ReadLogsSuricata/GeoLite2-City.mmdb'
+# Параметри підключення до PostgreSQL
+with open('config.json', 'r', encoding='utf-8') as config_file:
+    DB_CONFIG = json.load(config_file)
 
-# Допоміжна функція для отримання даних з SQLite
-def get_data_from_db(query, params=()):
+#Створення SQLAlchemy engine для зручної роботи з pandas.read_sql_query
+DB_URI = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}"
+db_engine = create_engine(DB_URI)
+
+# Шлях до бази GeoLite2 (потрібна для гео-визначення)
+GEOIP_DB_PATH = 'GeoLite2-City.mmdb'
+
+def normalize_jsonb(value):
+    """Повертає (parsed_obj, pretty_json_str) для поля JSONB."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None, ""
+
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return value, value
+    else:
+        parsed = value
+
+    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+    return parsed, pretty
+
+def get_table_name(filter_date=None):
+    """
+    Повертає назву таблиці events_YYYYMM.
+    Якщо дата фільтрації задана (YYYY-MM-DD), використовує її рік та місяць.
+    Якщо дата не задана, повертає таблицю поточного місяця.
+    """
+    if filter_date:
+        try:
+            dt = datetime.strptime(filter_date[:10], '%Y-%m-%d')
+            return f"events_{dt.strftime('%Y%m')}"
+        except ValueError:
+            pass
+    
+    # Резервний варіант: поточний місяць
+    now = datetime.now()
+    return f"events_{now.strftime('%Y%m')}"
+
+# Допоміжна функція для отримання даних з PostgreSQL через Pandas
+def get_data_from_db(query, params=None):
     try:
-        conn = sqlite3.connect(DB_FILE)
-        df = pd.read_sql_query(str(query), conn, params=params)
-        conn.close()
+        df = pd.read_sql_query(query, db_engine, params=params)
         return df
     except Exception as e:
         print(f"Помилка при виконанні SQL-запиту: {e}")
@@ -36,11 +76,12 @@ def get_data_from_db(query, params=()):
 def generate_chart(df, chart_type, x_col, y_col, title, label_format=''):
     if df.empty:
         return ""
+    # Конвертуємо стовпчик у стрічку, якщо це об'єкти IP-адрес
+    df[x_col] = df[x_col].astype(str)
     
     plt.figure(figsize=(10, 6))
-    
+        
     if chart_type == 'pie':
-        # Перевірка, щоб уникнути помилки, якщо всі значення 0
         total = df[y_col].sum()
         if total == 0:
             return ""
@@ -65,7 +106,6 @@ def generate_chart(df, chart_type, x_col, y_col, title, label_format=''):
         plt.grid(True)
         plt.tight_layout()
 
-    # Збереження графіка в base64
     img = io.BytesIO()
     plt.savefig(img, format='png')
     plt.close()
@@ -103,12 +143,12 @@ def get_whois_info(ip_address):
 def get_geo_data(df):
     geo_data_list = []
     if not os.path.exists(GEOIP_DB_PATH):
-        return geo_data_list # Повертаємо порожній список, якщо база GeoIP недоступна
+        return geo_data_list
         
     try:
         reader = geoip2.database.Reader(GEOIP_DB_PATH)
         for _, row in df.iterrows():
-            ip = row['dest_ip']
+            ip = str(row['dest_ip'])
             count = row['count']
             city = 'N/A'
             country = 'N/A'
@@ -122,7 +162,7 @@ def get_geo_data(df):
                 latitude = response.location.latitude
                 longitude = response.location.longitude
             except geoip2.errors.AddressNotFoundError:
-                pass # Не знайдено географічних даних для IP
+                pass
             except Exception as e:
                 print(f"Помилка GeoIP для {ip}: {e}")
                 
@@ -138,81 +178,75 @@ def get_geo_data(df):
     except Exception as e:
         print(f"Помилка ініціалізації GeoIP: {e}")
     
-    # Сортування за кількістю
     return sorted(geo_data_list, key=lambda x: x['count'], reverse=True)
 
 
-# --- ОСНОВНА ФУНКЦІЯ АНАЛІЗУ (ОНОВЛЕНО) ---
+# --- ОСНОВНА ФУНКЦІЯ АНАЛІЗУ ---
 def process_analysis_from_db(filter_date=None):
-    
+    table_name = get_table_name(filter_date)
     filter_params = []
     
-    # Фільтр для всіх подій
     all_events_filter = ""
     if filter_date:
-        all_events_filter = " WHERE SUBSTR(timestamp, 1, 10) = ?"        
-        filter_params.append(filter_date)
-    
-    # Фільтр для alert-подій
+        all_events_filter = f" WHERE SUBSTR(timestamp, 1, 10) = '{filter_date}'"
+        #filter_params.append(filter_date)
+        
     alert_filter = " WHERE event_type = 'alert'"
     drop_filter = " WHERE event_type = 'drop'"
     alert_params = []
+    
     if filter_date:
-         alert_filter += " AND SUBSTR(timestamp, 1, 10) = ?"
-         drop_filter += " AND SUBSTR(timestamp, 1, 10) = ?"
-         alert_params.append(filter_date)
-
+        alert_filter += f" AND SUBSTR(timestamp, 1, 10) = '{filter_date}'"
+        drop_filter += f" AND SUBSTR(timestamp, 1, 10) = '{filter_date}'"
+        #alert_params.append(filter_date)
+        
     # 1. Розподіл типів подій (Pie Chart)
-    query_pie = f"SELECT event_type, count(event_type) AS count FROM events {all_events_filter} GROUP BY event_type ORDER BY count DESC"
+    query_pie = f"SELECT event_type, count(event_type) AS count FROM {table_name} {all_events_filter} GROUP BY event_type ORDER BY count DESC"
     df_pie = get_data_from_db(query_pie, filter_params)
     pie_chart = generate_pie_chart(df_pie)
 
     # 2. Сигнатури тривог (Bar Chart)
-    query_bar = f"SELECT signature, count(signature) AS count FROM events {alert_filter} AND signature IS NOT NULL GROUP BY signature ORDER BY count DESC LIMIT 10"
+    query_bar = f"SELECT signature, count(signature) AS count FROM {table_name} {alert_filter} AND signature IS NOT NULL GROUP BY signature ORDER BY count DESC LIMIT 10"
     df_bar = get_data_from_db(query_bar, alert_params)
     bar_chart = generate_bar_chart(df_bar)
 
     # 2.1. Сигнатури відкинутих (Bar Chart)
-    query_bar = f"SELECT signature, count(signature) AS count FROM events {drop_filter}AND signature IS NOT NULL GROUP BY signature ORDER BY count DESC LIMIT 10"
-    df_bar = get_data_from_db(query_bar, alert_params)
-    bar_chart_drop = generate_bar_chart_drop(df_bar)
+    query_bar_drop = f"SELECT signature, count(signature) AS count FROM {table_name} {drop_filter} AND signature IS NOT NULL GROUP BY signature ORDER BY count DESC LIMIT 10"
+    df_bar_drop = get_data_from_db(query_bar_drop, alert_params)
+    bar_chart_drop = generate_bar_chart_drop(df_bar_drop)
 
     # 3. Кількість подій у часі (Line Chart)
-    # Групуємо по годині (перші 13 символів ISO дати: YYYY-MM-DDTHH)
     if filter_date:
-        query_line = f"SELECT SUBSTR(timestamp, 12, 2) AS hour, COUNT(timestamp) AS count FROM events {all_events_filter} GROUP BY hour ORDER BY hour"
+        query_line = f"SELECT SUBSTR(timestamp, 12, 2) AS hour, COUNT(timestamp) AS count FROM {table_name} {all_events_filter} GROUP BY hour ORDER BY hour"
     else:
-        query_line = "SELECT SUBSTR(timestamp, 1, 10) AS hour, COUNT(timestamp) AS count FROM events GROUP BY hour ORDER BY hour"
+        query_line = f"SELECT SUBSTR(timestamp, 1, 10) AS hour, COUNT(timestamp) AS count FROM {table_name} GROUP BY hour ORDER BY hour"
     df_line = get_data_from_db(query_line, filter_params)
     line_chart = generate_line_chart(df_line)
 
     # 4. Географічна інформація та Топ IP з тривогами
-    query_geo_ips = f"SELECT dest_ip, COUNT(dest_ip) AS count FROM events {alert_filter} AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC LIMIT 10"
+    query_geo_ips = f"SELECT dest_ip, COUNT(dest_ip) AS count FROM {table_name} {alert_filter} AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC LIMIT 10"
     df_geo_ips = get_data_from_db(query_geo_ips, alert_params)
     
     geo_data = get_geo_data(df_geo_ips)
     top_alert_ips_chart = generate_alert_ips_chart(df_geo_ips)
     
     # 4.1 Географічна інформація та Топ IP, пакети яких відкинуті
-    query_geo_ips = f"SELECT dest_ip, COUNT(dest_ip) AS count FROM events {drop_filter} AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC LIMIT 10"
-    df_geo_ips = get_data_from_db(query_geo_ips, alert_params)
+    query_geo_ips_drop = f"SELECT dest_ip, COUNT(dest_ip) AS count FROM {table_name} {drop_filter} AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC LIMIT 10"
+    df_geo_ips_drop = get_data_from_db(query_geo_ips_drop, alert_params)
 
-    geo_data = get_geo_data(df_geo_ips)
-    top_droped_ips_chart = generate_droped_ips_chart(df_geo_ips)
+    top_droped_ips_chart = generate_droped_ips_chart(df_geo_ips_drop)
 
     return pie_chart, bar_chart, bar_chart_drop, line_chart, geo_data, top_alert_ips_chart, top_droped_ips_chart
 
 # --- Маршрути Flask ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # Головна сторінка без фільтрації (аналіз за весь період)
-    
     pie_chart, bar_chart, bar_chart_drop, line_chart, geo_data, top_alert_ips_chart, top_droped_ips_chart = process_analysis_from_db()
 
     return render_template('index.html', 
                            pie_chart=pie_chart, 
                            bar_chart=bar_chart,
-                           bar_chart_drop = bar_chart_drop,
+                           bar_chart_drop=bar_chart_drop,
                            line_chart=line_chart, 
                            geo_data=geo_data,
                            top_alert_ips_chart=top_alert_ips_chart,
@@ -221,44 +255,57 @@ def index():
 # ЕТАП 1: Сторінка з типами подій
 @app.route('/event_types')
 def event_types():
-    query1 = "SELECT events.event_type, count(events.event_type) AS count, event_description.description "
-    query2 = "FROM events LEFT JOIN event_description ON events.event_type = event_description.event_type " 
-    query3 = "GROUP BY events.event_type ORDER BY count DESC"
-    data_frame = get_data_from_db(query1 + query2 + query3)
+    table_name = get_table_name()
+    query = f"""
+        SELECT events.event_type, count(events.event_type) AS count, event_description.description 
+        FROM {table_name} AS events 
+        LEFT JOIN event_description ON events.event_type = event_description.event_type 
+        GROUP BY events.event_type, event_description.description 
+        ORDER BY count DESC
+    """
+    data_frame = get_data_from_db(query)
     events_with_count = data_frame.to_dict('records')    
     return render_template('event_types.html', event_descriptions=events_with_count)
 
 # ЕТАП 1.1: Сторінка з IP-адресами для вибраного типу події
 @app.route('/event_type/<event_type>')
 def ips_by_event_type(event_type):
-    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM events WHERE event_type = '{event_type}' GROUP BY dest_ip"
-    data_frame = get_data_from_db(query)
+    table_name = get_table_name()
+    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM {table_name} WHERE event_type = %s GROUP BY dest_ip"
+    data_frame = get_data_from_db(query, (event_type,))
     geo_data = get_geo_data(data_frame)
     return render_template('ips_by_event_type.html', geo_data=geo_data, event_type=event_type)
 
 # ЕТАП 1.2: Сторінка з типами подій по заданій даті
 @app.route('/event_types_with_date/<filter_date>')
 def event_types_with_date(filter_date):    
-    query1 = "SELECT events.event_type, count(events.event_type) AS count, event_description.description "
-    query2 = "FROM events LEFT JOIN event_description ON events.event_type = event_description.event_type " 
-    query3 = f" WHERE SUBSTR(timestamp, 1, 10) = '{filter_date}' GROUP BY events.event_type ORDER BY count DESC"
-    data_frame = get_data_from_db(query1 + query2 + query3)
+    table_name = get_table_name(filter_date)
+    query = f"""
+        SELECT events.event_type, count(events.event_type) AS count, event_description.description 
+        FROM {table_name} AS events 
+        LEFT JOIN event_description ON events.event_type = event_description.event_type 
+        WHERE events.timestamp::date = %s 
+        GROUP BY events.event_type, event_description.description 
+        ORDER BY count DESC
+    """
+    data_frame = get_data_from_db(query, (filter_date,))
     events_with_count = data_frame.to_dict('records')    
     return render_template('event_types.html', event_descriptions=events_with_count, filter_date=filter_date)
 
 # ЕТАП 1.3: Сторінка з IP-адресами для вибраного типу події по заданій даті
 @app.route('/event_type_with_date/<event_type>/<filter_date>')
 def ips_by_event_type_with_date(event_type, filter_date):        
-    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM events WHERE event_type = '{event_type}' AND SUBSTR(timestamp, 1, 10) = '{filter_date}' GROUP BY dest_ip"
-    data_frame = get_data_from_db(query)    
+    table_name = get_table_name(filter_date)
+    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM {table_name} WHERE event_type = %s AND timestamp::date = %s GROUP BY dest_ip"
+    data_frame = get_data_from_db(query, (event_type, filter_date))    
     geo_data = get_geo_data(data_frame)           
     return render_template('ips_by_event_type.html', geo_data=geo_data, event_type=event_type)
 
 # ЕТАП 2.1: Сторінка з усіма сигнатурами тривог
 @app.route('/all_signatures')
 def all_signatures():
-    # Запит для отримання сигнатури та кількості її спрацьовувань
-    query = "SELECT signature AS namesig, count(signature) AS cs FROM events WHERE event_type = 'alert' AND signature IS NOT NULL GROUP BY signature ORDER BY cs DESC"
+    table_name = get_table_name()
+    query = f"SELECT signature AS namesig, count(signature) AS cs FROM {table_name} WHERE event_type = 'alert' AND signature IS NOT NULL GROUP BY signature ORDER BY cs DESC"
     data_frame = get_data_from_db(query)
     signatures_with_count = data_frame.to_dict('records')
     return render_template('all_signatures.html', signatures=signatures_with_count)
@@ -266,33 +313,35 @@ def all_signatures():
 # ЕТАП 2.2: Сторінка з IP-адресами для вибраної сигнатури та по заданій даті
 @app.route('/signature/<signature>/<filter_date>')
 def ips_by_signature(signature, filter_date):
-    query = f"SELECT DISTINCT dest_ip FROM events WHERE event_type = 'alert' AND signature = ? AND SUBSTR(timestamp, 1, 10) = '{filter_date}'"    
-    data_frame = get_data_from_db(query, (signature,))
-    ips = data_frame['dest_ip'].tolist()
+    table_name = get_table_name(filter_date)
+    query = f"SELECT DISTINCT dest_ip FROM {table_name} WHERE event_type = 'alert' AND signature = %s AND timestamp::date = %s"    
+    data_frame = get_data_from_db(query, (signature, filter_date))
+    ips = [str(ip) for ip in data_frame['dest_ip'].tolist()]
     return render_template('ips_by_signature.html', ips=sorted(list(set(ips))), signature=signature)
 
 # ЕТАП 2.2a: Сторінка з IP-адресами для вибраної сигнатури
 @app.route('/allsignature/<signature>')
 def ips_by_allsignature(signature):
-    query = "SELECT DISTINCT dest_ip FROM events WHERE event_type = 'alert' AND signature = ?"
+    table_name = get_table_name()
+    query = f"SELECT DISTINCT dest_ip FROM {table_name} WHERE event_type = 'alert' AND signature = %s"
     data_frame = get_data_from_db(query, (signature,))
-    ips = data_frame['dest_ip'].tolist()
+    ips = [str(ip) for ip in data_frame['dest_ip'].tolist()]
     return render_template('ips_by_signature.html', ips=sorted(list(set(ips))), signature=signature)
 
 # ЕТАП 2.3: Сторінка з усіма сигнатурами по заданій даті
 @app.route('/all_signatures_with_date/<filter_date>')
 def all_signatures_with_date(filter_date):
-    query1 = "SELECT signature AS namesig, count(signature) AS cs FROM events WHERE event_type = 'alert' AND signature IS NOT NULL"
-    query2 = f" AND SUBSTR(timestamp, 1, 10) = '{filter_date}' GROUP BY signature ORDER BY cs DESC"
-    data_frame = get_data_from_db(query1 + query2)
+    table_name = get_table_name(filter_date)
+    query = f"SELECT signature AS namesig, count(signature) AS cs FROM {table_name} WHERE event_type = 'alert' AND signature IS NOT NULL AND timestamp::date = %s GROUP BY signature ORDER BY cs DESC"
+    data_frame = get_data_from_db(query, (filter_date,))
     signatures_with_count = data_frame.to_dict('records')
     return render_template('all_signatures.html', signatures=signatures_with_count, filter_date=filter_date)
 
 # ЕТАП 2.4: Сторінка з усіма сигнатурами відкинутих пакетів
 @app.route('/all_signatures_drop')
 def all_signatures_drops():
-    # Запит для отримання сигнатури відкинутих пакетів та кількості її спрацьовувань
-    query = "SELECT signature AS namesig, count(signature) AS cs FROM events WHERE event_type = 'drop' AND signature IS NOT NULL GROUP BY signature ORDER BY cs DESC"
+    table_name = get_table_name()
+    query = f"SELECT signature AS namesig, count(signature) AS cs FROM {table_name} WHERE event_type = 'drop' AND signature IS NOT NULL GROUP BY signature ORDER BY cs DESC"
     data_frame = get_data_from_db(query)
     signatures_with_count = data_frame.to_dict('records')
     return render_template('all_signatures_drops.html', signatures=signatures_with_count)
@@ -300,32 +349,35 @@ def all_signatures_drops():
 # ЕТАП 2.5: Сторінка з IP-адресами для вибраної сигнатури відкинутих пакетів та по заданій даті
 @app.route('/signature_drop/<signature>/<filter_date>')
 def ips_by_signature_drop(signature, filter_date):
-    query = f"SELECT DISTINCT dest_ip FROM events WHERE event_type = 'drop' AND signature = ? AND SUBSTR(timestamp, 1, 10) = '{filter_date}'"    
-    data_frame = get_data_from_db(query, (signature,))
-    ips = data_frame['dest_ip'].tolist()
+    table_name = get_table_name(filter_date)
+    query = f"SELECT DISTINCT dest_ip FROM {table_name} WHERE event_type = 'drop' AND signature = %s AND timestamp::date = %s"    
+    data_frame = get_data_from_db(query, (signature, filter_date))
+    ips = [str(ip) for ip in data_frame['dest_ip'].tolist()]
     return render_template('ips_by_signature_drops.html', ips=sorted(list(set(ips))), signature=signature)
 
 # ЕТАП 2.5a: Сторінка з IP-адресами для вибраної сигнатури відкинутих пакетів
 @app.route('/allsignature_drop/<signature>')
 def ips_by_allsignature_drop(signature):
-    query = "SELECT DISTINCT dest_ip FROM events WHERE event_type = 'drop' AND signature = ?"
+    table_name = get_table_name()
+    query = f"SELECT DISTINCT dest_ip FROM {table_name} WHERE event_type = 'drop' AND signature = %s"
     data_frame = get_data_from_db(query, (signature,))
-    ips = data_frame['dest_ip'].tolist()
+    ips = [str(ip) for ip in data_frame['dest_ip'].tolist()]
     return render_template('ips_by_signature_drops.html', ips=sorted(list(set(ips))), signature=signature)
 
 # ЕТАП 2.6: Сторінка з усіма сигнатурами відкинутих пакетів по заданій даті
 @app.route('/all_signatures_drops_with_date/<filter_date>')
 def all_signatures_drops_with_date(filter_date):
-    query1 = "SELECT signature AS namesig, count(signature) AS cs FROM events WHERE event_type = 'drop' AND signature IS NOT NULL"
-    query2 = f" AND SUBSTR(timestamp, 1, 10) = '{filter_date}' GROUP BY signature ORDER BY cs DESC"
-    data_frame = get_data_from_db(query1 + query2)
+    table_name = get_table_name(filter_date)
+    query = f"SELECT signature AS namesig, count(signature) AS cs FROM {table_name} WHERE event_type = 'drop' AND signature IS NOT NULL AND timestamp::date = %s GROUP BY signature ORDER BY cs DESC"
+    data_frame = get_data_from_db(query, (filter_date,))
     signatures_with_count = data_frame.to_dict('records')
     return render_template('all_signatures_drops.html', signatures=signatures_with_count, filter_date=filter_date)
 
 # ЕТАП 3: Сторінка з усіма IP-адресами з тривогами
 @app.route('/all_alert_ips')
 def all_alert_ips():
-    query = "SELECT dest_ip, COUNT(dest_ip) as count FROM events WHERE event_type = 'alert' AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
+    table_name = get_table_name()
+    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM {table_name} WHERE event_type = 'alert' AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
     df_geo_ips = get_data_from_db(query)
     geo_data = get_geo_data(df_geo_ips)
     return render_template('all_alert_ips.html', geo_data=geo_data)
@@ -333,7 +385,8 @@ def all_alert_ips():
 # ЕТАП 3.1: Сторінка з усіма IP-адресами, пакети яких відкинуті
 @app.route('/all_droped_ips')
 def all_droped_ips():
-    query = "SELECT dest_ip, COUNT(dest_ip) as count FROM events WHERE event_type = 'drop' AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
+    table_name = get_table_name()
+    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM {table_name} WHERE event_type = 'drop' AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
     df_geo_ips = get_data_from_db(query)
     geo_data = get_geo_data(df_geo_ips)
     return render_template('all_droped_ips.html', geo_data=geo_data)
@@ -341,60 +394,57 @@ def all_droped_ips():
 # ЕТАП 3.2: Сторінка з усіма IP-адресами з тривогами для заданої дати
 @app.route('/all_alert_ips_with_date/<filter_date>')
 def all_alert_ips_with_date(filter_date):
-    query1 = "SELECT dest_ip, COUNT(dest_ip) as count FROM events WHERE event_type = 'alert'"
-    query2 = f" AND SUBSTR(timestamp, 1, 10) = '{filter_date}' AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
-    df_geo_ips = get_data_from_db(query1 + query2)
+    table_name = get_table_name(filter_date)
+    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM {table_name} WHERE event_type = 'alert' AND timestamp::date = %s AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
+    df_geo_ips = get_data_from_db(query, (filter_date,))
     geo_data = get_geo_data(df_geo_ips)
     return render_template('all_alert_ips.html', geo_data=geo_data)
 
 # ЕТАП 3.3: Сторінка з усіма IP-адресами, пакети яких відкинуті для заданої дати
 @app.route('/all_droped_ips_with_date/<filter_date>')
 def all_droped_ips_with_date(filter_date):
-    query1 = "SELECT dest_ip, COUNT(dest_ip) as count FROM events WHERE event_type = 'drop'"
-    query2 = f" AND SUBSTR(timestamp, 1, 10) = '{filter_date}' AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
-    df_geo_ips = get_data_from_db(query1 + query2)
+    table_name = get_table_name(filter_date)
+    query = f"SELECT dest_ip, COUNT(dest_ip) as count FROM {table_name} WHERE event_type = 'drop' AND timestamp::date = %s AND dest_ip IS NOT NULL GROUP BY dest_ip ORDER BY count DESC"
+    df_geo_ips = get_data_from_db(query, (filter_date,))
     geo_data = get_geo_data(df_geo_ips)
     return render_template('all_droped_ips.html', geo_data=geo_data)
 
-# ЕТАП 4: СТОРІНКА ФІЛЬТРАЦІЇ ПО ДАТІ (ОНОВЛЕНО)
+# ЕТАП 4: СТОРІНКА ФІЛЬТРАЦІЇ ПО ДАТІ
 @app.route('/date_filter', methods=['GET', 'POST'])
 def date_filter():
     filter_date = None
-    pie_chart = bar_chart = bar_chart_drop = line_chart = top_alert_ips_chart = None
-    bar_chart = top_droped_ips_chart = None
+    pie_chart = bar_chart = bar_chart_drop = line_chart = top_alert_ips_chart = top_droped_ips_chart = None
     geo_data = []
 
     if request.method == 'POST':
         filter_date = request.form.get('filter_date')
+
         if filter_date:      
-            # Викликаємо функцію аналізу з датою фільтрації
-            pie_chart, bar_chart, bar_chart_drop,line_chart, geo_data, top_alert_ips_chart, top_droped_ips_chart = process_analysis_from_db(filter_date)
+            pie_chart, bar_chart, bar_chart_drop, line_chart, geo_data, top_alert_ips_chart, top_droped_ips_chart = process_analysis_from_db(filter_date)
         
     return render_template('date_filter.html', 
                            pie_chart=pie_chart, 
                            bar_chart=bar_chart,
-                           bar_chart_drop = bar_chart_drop,
+                           bar_chart_drop=bar_chart_drop,
                            line_chart=line_chart, 
                            geo_data=geo_data,
                            top_alert_ips_chart=top_alert_ips_chart,
                            top_droped_ips_chart=top_droped_ips_chart,
                            filter_date=filter_date)
 
-# ЕТАП 5: СТОРІНКА ІНФОРМАЦІ ПРО ЗАДАНУ IP-АДРЕСУ
+# ЕТАП 5: СТОРІНКА ІНФОРМАЦІЇ ПРО ЗАДАНУ IP-АДРЕСУ
 @app.route('/ip_info', methods=['GET', 'POST'])
 def ip_info():
     pie_chart = ipaddress = whois_info = None
     geo_info = {}
     ip_activity = {}
+    table_name = get_table_name()
                            
     if request.method == 'POST':
         ipaddress = request.form.get('ipaddress')
         if ipaddress:      
-            # 1. WHOIS-інформація
             whois_info = get_whois_info(ipaddress)
 
-            # 2. Географічна інформація
-            geo_info = {}
             if os.path.exists(GEOIP_DB_PATH):
                 try:
                     reader = geoip2.database.Reader(GEOIP_DB_PATH)
@@ -411,24 +461,20 @@ def ip_info():
             else:
                 geo_info = {'error': 'База даних GeoLite2 не знайдена.'}
 
-            # 3. Активність за IP
-                              
-            query_pie = f"SELECT event_type, count(event_type) AS count FROM events WHERE dest_ip = '{ipaddress}' OR dest_ip = '{ipaddress}' GROUP BY event_type ORDER BY count DESC"
-            df_pie = get_data_from_db(query_pie, '')
+            # Запит типів подій
+            query_pie = f"SELECT event_type, count(event_type) AS count FROM {table_name} WHERE dest_ip = %s OR src_ip = %s GROUP BY event_type ORDER BY count DESC"
+            df_pie = get_data_from_db(query_pie, (ipaddress, ipaddress))
             pie_chart = generate_pie_chart(df_pie)
             
-            data_frame = get_data_from_db(f"SELECT * FROM events WHERE dest_ip = '{ipaddress}' OR dest_ip = '{ipaddress}'")
-            # Перетворюємо стовпець 'timestamp' на об'єкти datetime
+            # Активність
+            data_frame = get_data_from_db(f"SELECT * FROM {table_name} WHERE dest_ip = %s OR src_ip = %s", (ipaddress, ipaddress))
             if 'timestamp' in data_frame.columns:
-                data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce')
+                data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce', utc=False)
 
-            ip_activity = data_frame[(data_frame['dest_ip'] == ipaddress) | (data_frame['dest_ip'] == ipaddress)]
-            ip_activity = ip_activity.to_dict('records')
+            ip_activity = data_frame.to_dict('records')
 
             if whois_info and not isinstance(whois_info, dict):
                 whois_info = whois_info.__dict__
-            else:
-                whois_info = whois_info
         
     return render_template('ip_info.html',
                            ip_address=ipaddress,
@@ -456,10 +502,8 @@ def fast_log_page():
 
 @app.route('/ip_details/<ip_address>/<event_type>')
 def ip_details(ip_address, event_type):
-    # 1. WHOIS-інформація
     whois_info = get_whois_info(ip_address)
 
-    # 2. Географічна інформація
     geo_info = {}
     if os.path.exists(GEOIP_DB_PATH):
         try:
@@ -477,15 +521,13 @@ def ip_details(ip_address, event_type):
     else:
         geo_info = {'error': 'База даних GeoLite2 не знайдена.'}
 
-    # 3. Активність за IP
-    data_frame = get_data_from_db(f"SELECT * FROM events WHERE event_type = '{event_type}'")    
+    table_name = get_table_name()
+    data_frame = get_data_from_db(f"SELECT * FROM {table_name} WHERE event_type = %s AND (src_ip = %s OR dest_ip = %s)", (event_type, ip_address, ip_address))    
     
-    # Перетворюємо стовпець 'timestamp' на об'єкти datetime
     if 'timestamp' in data_frame.columns:
-        data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce')
+        data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce', utc=False)
         
-    ip_activity = data_frame[(data_frame['src_ip'] == ip_address) | (data_frame['dest_ip'] == ip_address)]
-    ip_activity_list = ip_activity.to_dict('records')
+    ip_activity_list = data_frame.to_dict('records')
 
     if whois_info and not isinstance(whois_info, dict):
         whois_dict = whois_info.__dict__
@@ -498,29 +540,64 @@ def ip_details(ip_address, event_type):
                            geo_info=geo_info,
                            ip_activity=ip_activity_list)
 
-#Сторінка Фільтр за період
+# Сторінка Фільтр за період
 @app.route('/period_filter', methods=['GET', 'POST'])
 def period_filter_page():
-    filter_date_from = filter_date_to = None
     logs_activity = {}
     text_period = ''
 
     if request.method == 'POST':
-        filter_period_from = request.form.get('filter_date_from') + 'T' + request.form.get('filter_time_from')
-        filter_period_to = request.form.get('filter_date_to') + 'T' + request.form.get('filter_time_to')
+        date_from = request.form.get('filter_date_from')
+        time_from = request.form.get('filter_time_from')
+        date_to = request.form.get('filter_date_to')
+        time_to = request.form.get('filter_time_to')
 
-        text_period = 'з ' + request.form.get('filter_date_from') + ' ' + request.form.get('filter_time_from') + ' по ' + request.form.get('filter_date_to') + ' ' + request.form.get('filter_time_to')
+        filter_period_from = f"{date_from}T{time_from}"
+        filter_period_to = f"{date_to}T{time_to}"
+
+        text_period = f"з {date_from} {time_from} по {date_to} {time_to}"
         
-        if filter_period_from and filter_period_to:
-                       
-            data_frame = get_data_from_db(f"SELECT * FROM events WHERE SUBSTR(timestamp, 1, 16) BETWEEN '{filter_period_from}' AND '{filter_period_to}'")            
-            # Перетворюємо стовпець 'timestamp' на об'єкти datetime
+        if date_from and date_to:
+            table_name = get_table_name(date_from)
+            query = f"SELECT * FROM {table_name} WHERE SUBSTR(timestamp, 1, 16) BETWEEN '{filter_period_from}' AND '{filter_period_to}'"
+
+            data_frame = get_data_from_db(query, (filter_period_from, filter_period_to))            
+            
             if 'timestamp' in data_frame.columns:
-                data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce')
+                data_frame['timestamp'] = pd.to_datetime(data_frame['timestamp'], errors='coerce', utc=False)
             
             logs_activity = data_frame.to_dict('records')
                         
-    return render_template('period_info.html', dataframe = logs_activity, period = text_period)
+    return render_template('period_info.html', dataframe=logs_activity, period=text_period)
+
+# Сторінка детальної інфоррмації про певну подію
+@app.route("/event_details/<int:event_id>")
+def event_details(event_id):
+    table_name = get_table_name()
+
+    if not re.fullmatch(r"[A-Za-z0-9_]+", table_name):
+        raise ValueError(f"Некоректна назва таблиці: {table_name}")
+
+    query = f'SELECT * FROM "{table_name}" WHERE id = %s'
+    data_frame = get_data_from_db(query, (event_id,))
+
+    if data_frame is None or data_frame.empty:
+        return render_template("event_details.html", event=None, event_id=event_id)
+
+    if "timestamp" in data_frame.columns:
+        data_frame["timestamp"] = pd.to_datetime(
+            data_frame["timestamp"], errors="coerce"
+        )
+
+    event_record = data_frame.iloc[0].to_dict()
+    details_obj, details_pretty = normalize_jsonb(event_record.get("event_details"))
+
+    return render_template(
+        "event_details.html",
+        event=event_record,
+        event_details_obj=details_obj,
+        event_details_pretty=details_pretty,
+    )
 
 
 if __name__ == '__main__':    
