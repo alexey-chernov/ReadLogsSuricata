@@ -1,7 +1,0 @@
-{
-    "dbname": "Suricata_Logs",
-    "user": "adminsl",
-    "password": "sl12345",
-    "host": "192.168.1.132",
-    "port": 5432
-}
